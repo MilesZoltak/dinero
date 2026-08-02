@@ -32,13 +32,8 @@ interface Account {
 }
 
 // Child PlaidLinker component to mount when token is ready
-interface PlaidLinkerProps {
-  token: string;
-  onSuccess: any;
-  onExit: () => void;
-}
-
-function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
+function PlaidButton({ token, onSuccess, onExit, isInvestment }: { token: string; onSuccess: any; onExit: () => void; isInvestment: boolean }) {
+  const openedRef = React.useRef(false);
   const { open, ready } = usePlaidLink({
     token,
     onSuccess: (public_token, metadata) => {
@@ -46,14 +41,15 @@ function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
     },
     onExit: (err, metadata) => {
       if (err) {
-        console.error('Plaid Link Error / Exit:', err, metadata);
+        console.error('Plaid Link Exit Error:', err, metadata);
       }
       onExit();
     },
   });
 
   useEffect(() => {
-    if (ready) {
+    if (ready && !openedRef.current) {
+      openedRef.current = true;
       open();
     }
   }, [ready, open]);
@@ -112,6 +108,7 @@ export default function AccountsPage() {
   const initiatePlaidLink = async (isInvestment: boolean) => {
     setShowLinkSelectorModal(false);
     setLinkTokenLoading(true);
+    setPlaidToken(null);
     try {
       const res = await fetch('/api/plaid/create-link-token', {
         method: 'POST',
@@ -316,10 +313,11 @@ export default function AccountsPage() {
       
       {/* Dynamic Plaid Linker mount */}
       {plaidToken && !isMockFlow && (
-        <PlaidLinker 
+        <PlaidButton 
           token={plaidToken} 
           onSuccess={handlePlaidSuccess} 
-          onExit={() => setPlaidToken(null)} 
+          onExit={() => setPlaidToken(null)}
+          isInvestment={false}
         />
       )}
 
@@ -438,12 +436,17 @@ export default function AccountsPage() {
                   {manualAccounts.map((acc) => (
                     <div 
                       key={acc.id} 
+                      onClick={() => setSelectedAccount(acc)}
+                      className="account-row-link"
                       style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center', 
-                        padding: '12px 0',
-                        borderBottom: '1px solid rgba(255,255,255,0.02)'
+                        padding: '12px 12px',
+                        margin: '4px -12px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -458,12 +461,12 @@ export default function AccountsPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: '16px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '16px', color: '#7fb069' }}>
                           {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(acc.balance)}
                         </span>
                         <button 
                           className="btn btn-danger" 
-                          onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id, acc.name); }}
                           style={{ padding: '6px 8px' }}
                         >
                           <Trash2 size={14} />
