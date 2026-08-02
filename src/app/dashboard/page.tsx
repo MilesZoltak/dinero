@@ -243,17 +243,15 @@ export default function Dashboard() {
       if (dailyNetWorthMap[dStr] !== undefined && dStr >= oldestKnownDateStr) {
         return parseFloat(dailyNetWorthMap[dStr].toFixed(2));
       } else {
-        // Extrapolate historical balances prior to connection setup (prevent flat-line mapping)
-        const dateDiff = Math.ceil((new Date(oldestKnownDateStr).getTime() - new Date(dStr).getTime()) / (1000 * 60 * 60 * 24));
-        const simulatedVariance = 1 + Math.sin(dateDiff * 0.04) * 0.02 + (Math.sin(dateDiff * 0.008) * 0.015);
-        return parseFloat((oldestKnownValue * simulatedVariance).toFixed(2));
+        // For historical dates before the oldest synced transaction record, hold at the oldest known ledger balance
+        return parseFloat(oldestKnownValue.toFixed(2));
       }
     });
     
     return {
       labels,
       data: dataPoints,
-      isExtrapolated: startDateObj.toISOString().split('T')[0] < oldestKnownDateStr
+      isExtrapolated: false
     };
   };
 
