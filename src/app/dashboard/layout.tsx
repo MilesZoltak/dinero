@@ -65,6 +65,18 @@ export default function DashboardLayout({
     { name: 'Spend', href: '/dashboard/spend', icon: TrendingDown },
   ];
 
+  const handleSignOut = async () => {
+    try {
+      if (auth) {
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+      }
+      router.push('/');
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
+  };
+
   return (
     <div className="layout-wrapper animated-fade-in">
       {/* Mobile Top Header */}
@@ -75,6 +87,14 @@ export default function DashboardLayout({
           </div>
           <span className="logo-text">dinero</span>
         </div>
+        <button 
+          onClick={handleSignOut}
+          className="btn btn-secondary"
+          style={{ padding: '6px 12px', fontSize: '12px', gap: '6px' }}
+        >
+          <LogOut size={14} />
+          <span>Sign Out</span>
+        </button>
       </header>
 
       {/* Desktop Sidebar */}
@@ -102,6 +122,36 @@ export default function DashboardLayout({
             );
           })}
         </nav>
+
+        {/* Sidebar Sign Out Footer */}
+        <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+          <button
+            onClick={handleSignOut}
+            className="nav-item"
+            style={{
+              width: '100%',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              justifyContent: 'flex-start',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(244, 63, 94, 0.1)';
+              e.currentTarget.style.color = '#f43f5e';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+            }}
+          >
+            <LogOut size={20} />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </aside>
 
       <main className="main-content">
