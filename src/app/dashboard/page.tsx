@@ -462,23 +462,60 @@ export default function Dashboard() {
               {/* Timescale Selector Button Group */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {(['week', 'month', '3m', '6m', 'ytd', '1y', '2y', '5y', 'all', 'custom'] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => setTimescale(opt)}
-                      className={`btn ${timescale === opt ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{ 
-                        padding: '6px 12px', 
-                        fontSize: '11px', 
-                        borderRadius: '6px',
-                        textTransform: 'uppercase',
-                        fontWeight: 600,
-                        border: timescale === opt ? 'none' : '1px solid rgba(255,255,255,0.06)'
-                      }}
-                    >
-                      {opt === 'all' ? 'all time' : opt}
-                    </button>
-                  ))}
+                  {(() => {
+                    // Calculate total available history span in days
+                    const today = new Date();
+                    let oldestDate = today;
+                    if (transactions.length > 0) {
+                      const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+                      const parsedOldest = new Date(sortedTxs[0].date);
+                      if (!isNaN(parsedOldest.getTime())) {
+                        oldestDate = parsedOldest;
+                      }
+                    }
+                    const totalDaysAvailable = Math.max(1, Math.ceil((today.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+                    const optionsConfig = [
+                      { id: 'week', label: 'week', days: 7 },
+                      { id: 'month', label: 'month', days: 30 },
+                      { id: '3m', label: '3m', days: 90 },
+                      { id: '6m', label: '6m', days: 180 },
+                      { id: 'ytd', label: 'ytd', days: Math.ceil((today.getTime() - new Date(today.getFullYear(), 0, 1).getTime()) / (1000 * 60 * 60 * 24)) },
+                      { id: '1y', label: '1y', days: 365 },
+                      { id: '2y', label: '2y', days: 730 },
+                      { id: '5y', label: '5y', days: 1825 },
+                    ] as const;
+
+                    // Filter fixed options to only those within bounds of available data (always show week & month if data exists)
+                    const validFixedOptions = optionsConfig.filter(opt => {
+                      if (opt.id === 'week' || opt.id === 'month') return true;
+                      return opt.days <= totalDaysAvailable + 30; // 30-day buffer allowance
+                    });
+
+                    const allAvailableButtons = [
+                      ...validFixedOptions.map(o => o.id),
+                      'all',
+                      'custom'
+                    ] as const;
+
+                    return allAvailableButtons.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setTimescale(opt as any)}
+                        className={`btn ${timescale === opt ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ 
+                          padding: '6px 12px', 
+                          fontSize: '11px', 
+                          borderRadius: '6px',
+                          textTransform: 'uppercase',
+                          fontWeight: 600,
+                          border: timescale === opt ? 'none' : '1px solid rgba(255,255,255,0.06)'
+                        }}
+                      >
+                        {opt === 'all' ? 'all time' : opt}
+                      </button>
+                    ));
+                  })()}
                 </div>
 
                 {/* Custom Date Range Picker panel */}
