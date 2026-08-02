@@ -41,10 +41,12 @@ interface PlaidLinkerProps {
 function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
   const { open, ready } = usePlaidLink({
     token,
-    onSuccess,
+    onSuccess: (public_token, metadata) => {
+      onSuccess(public_token, metadata);
+    },
     onExit: (err, metadata) => {
       if (err) {
-        console.error('Plaid Link Exit Error:', err, metadata);
+        console.error('Plaid Link Error / Exit:', err, metadata);
       }
       onExit();
     },
@@ -54,7 +56,7 @@ function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
     if (ready) {
       open();
     }
-  }, [ready]);
+  }, [ready, open]);
 
   return null;
 }
@@ -83,6 +85,7 @@ export default function AccountsPage() {
   // Modal toggles
   const [showMockModal, setShowMockModal] = useState(false);
   const [showLinkSelectorModal, setShowLinkSelectorModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
   const fetchAccounts = async () => {
     try {
@@ -387,9 +390,9 @@ export default function AccountsPage() {
                     </div>
                     <div className="accounts-list">
                       {instAccounts.map((acc) => (
-                        <a 
+                        <div 
                           key={acc.id} 
-                          href={`/dashboard/transactions`}
+                          onClick={() => setSelectedAccount(acc)}
                           style={{ 
                             display: 'flex', 
                             justifyContent: 'space-between', 
@@ -397,7 +400,6 @@ export default function AccountsPage() {
                             padding: '10px 12px',
                             margin: '4px -12px',
                             borderRadius: '8px',
-                            textDecoration: 'none',
                             color: 'inherit',
                             transition: 'background 0.15s ease',
                             cursor: 'pointer'
@@ -413,7 +415,7 @@ export default function AccountsPage() {
                           <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '15px', color: '#7fb069' }}>
                             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(acc.balance)}
                           </div>
-                        </a>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -781,6 +783,77 @@ export default function AccountsPage() {
             >
               Cancel Linkage
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Account Details Popup */}
+      {selectedAccount && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 110,
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div className="glass-panel animated-fade-in" style={{ padding: '36px', maxWidth: '480px', width: '90%', borderLeft: '4px solid #7fb069' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.08em' }}>
+                  {selectedAccount.institutionName}
+                </span>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {selectedAccount.name}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSelectedAccount(null)}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px', borderRadius: '50%' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Current Balance</span>
+              <div style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'monospace', color: '#7fb069', marginTop: '4px' }}>
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedAccount.balance)}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', display: 'block' }}>Type</span>
+                  <span style={{ fontWeight: 600, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{selectedAccount.type} ({selectedAccount.subtype})</span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', display: 'block' }}>Mask</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedAccount.mask ? `•••• ${selectedAccount.mask}` : 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <a 
+                href="/dashboard/transactions"
+                className="btn btn-primary"
+                style={{ flex: 1, textDecoration: 'none', textAlign: 'center', justifyContent: 'center' }}
+              >
+                View Transactions
+              </a>
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setSelectedAccount(null)}
+                style={{ flex: 1 }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
