@@ -45,6 +45,24 @@ export default function DashboardLayout({
 
   return (
     <div className="layout-wrapper animated-fade-in">
+      {/* Mobile Top Header */}
+      <header className="mobile-header">
+        <div className="logo-container" style={{ marginBottom: 0 }}>
+          <div className="logo-icon-box">
+            <span>d</span>
+          </div>
+          <span className="logo-text">dinero</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {isCloudMode ? (
+            <CloudLightning size={16} style={{ color: '#10b981' }} />
+          ) : (
+            <Database size={16} style={{ color: '#f59e0b' }} />
+          )}
+        </div>
+      </header>
+
+      {/* Desktop Sidebar */}
       <aside className="sidebar">
         <div className="logo-container">
           <div className="logo-icon-box">
@@ -106,6 +124,24 @@ export default function DashboardLayout({
       <main className="main-content">
         {children}
       </main>
+
+      {/* Mobile Fixed Bottom Tab Bar */}
+      <nav className="mobile-bottom-nav">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link 
+              key={item.href} 
+              href={item.href}
+              className={`mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Icon size={20} />
+              <span>{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
