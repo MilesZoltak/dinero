@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebaseClient';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -21,14 +23,34 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCloudMode, setIsCloudMode] = useState<boolean | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Auth Guard: redirect unauthenticated users back to login page
+  useEffect(() => {
+    if (!auth) {
+      setAuthChecked(true);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.push('/');
+      } else {
+        setAuthChecked(true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   // Check database configuration on load
   useEffect(() => {
     async function checkDb() {
       try {
         const res = await fetch('/api/accounts');
-        setIsCloudMode(false); // Default to local for now
+        setIsCloudMode(true);
       } catch {
         setIsCloudMode(false);
       }
