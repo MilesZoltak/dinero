@@ -413,6 +413,19 @@ export default function SpendHubPage() {
     }]
   };
 
+  const doughnutOptions = {
+    cutout: '75%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => ` ${context.label}: ${formatCurrency(context.raw)}`
+        }
+      }
+    },
+    maintainAspectRatio: false
+  };
+
   const createDoughnutOptions = (categoriesList: [string, number][], type: 'spend' | 'income') => ({
     cutout: '75%',
     plugins: {
@@ -426,15 +439,17 @@ export default function SpendHubPage() {
     maintainAspectRatio: false,
     onClick: (event: any, elements: any[]) => {
       if (elements && elements.length > 0) {
-        const index = elements[0].index;
-        const clickedCat = categoriesList[index]?.[0];
-        if (clickedCat) {
-          setSelectedCategory(clickedCat);
-          setSelectedCategoryType(type);
-          setSelectedMerchant(null);
-          setSelectedSubcategory(null);
-          setDrilldownTab('subcategories');
-          setPendingUpdates({});
+        const index = elements[0].index !== undefined ? elements[0].index : elements[0]._index;
+        if (index !== undefined) {
+          const clickedCat = categoriesList[index]?.[0];
+          if (clickedCat) {
+            setSelectedCategory(clickedCat);
+            setSelectedCategoryType(type);
+            setSelectedMerchant(null);
+            setSelectedSubcategory(null);
+            setDrilldownTab('subcategories');
+            setPendingUpdates({});
+          }
         }
       }
     }
@@ -453,10 +468,12 @@ export default function SpendHubPage() {
     maintainAspectRatio: false,
     onClick: (event: any, elements: any[]) => {
       if (elements && elements.length > 0) {
-        const index = elements[0].index;
-        const itemName = getItemName(index);
-        if (itemName) {
-          onSelect(itemName);
+        const index = elements[0].index !== undefined ? elements[0].index : elements[0]._index;
+        if (index !== undefined) {
+          const itemName = getItemName(index);
+          if (itemName) {
+            onSelect(itemName);
+          }
         }
       }
     }
