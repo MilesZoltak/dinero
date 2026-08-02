@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { plaidClient, isPlaidEnabled } from '@/lib/plaidClient';
+import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { Products, CountryCode } from 'plaid';
 
 export async function POST(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       // No body passed or failed parsing, default to Transactions
     }
 
-    const configs = {
+    const configs: any = {
       user: {
         client_user_id: 'user_local',
       },
@@ -32,13 +32,14 @@ export async function POST(request: Request) {
       language: 'en',
     };
 
+    const plaidClient = getPlaidClient();
     const createTokenResponse = await plaidClient!.linkTokenCreate(configs);
     return NextResponse.json(createTokenResponse.data);
   } catch (error: any) {
-    console.error('Error creating Plaid Link Token:', error);
+    console.error('Error creating Plaid Link Token:', error?.response?.data || error.message || error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create link token' },
-      { status: 500 }
+      { error: error?.response?.data?.error_message || error.message || 'Failed to create link token', details: error?.response?.data },
+      { status: error?.response?.status || 500 }
     );
   }
 }

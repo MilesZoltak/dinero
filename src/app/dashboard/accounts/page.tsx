@@ -40,8 +40,10 @@ function PlaidButton({ token, onSuccess, onExit, isInvestment }: { token: string
       onSuccess(public_token, metadata);
     },
     onExit: (err, metadata) => {
-      if (err) {
-        console.error('Plaid Link Exit Error:', err, metadata);
+      if (err && (err.error_code || err.error_message)) {
+        console.error('Plaid Link Exit Error:', err.error_code, err.error_message, metadata);
+      } else {
+        console.log('Plaid Link closed by user or flow completed.');
       }
       onExit();
     },
