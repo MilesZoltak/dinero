@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "dbt-diary-card-c1473"
-  }
+    "default": "dinero-3e826"
+  },
+  "targets": {},
+  "etags": {}
 }

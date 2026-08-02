@@ -10,7 +10,10 @@ try {
   if (projectId && clientEmail && privateKey) {
     const adminAny = admin as any;
     if (!adminAny.apps || !adminAny.apps.length) {
-      const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+      let formattedPrivateKey = privateKey.replace(/^"|"$/g, '');
+      if (!formattedPrivateKey.includes('\n') && formattedPrivateKey.includes('\\n')) {
+        formattedPrivateKey = formattedPrivateKey.replace(/\\n/g, '\n');
+      }
       adminAny.initializeApp({
         credential: adminAny.credential.cert({
           projectId,

@@ -5,4 +5,8 @@ runConfig:
 
 env:
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    value: dbt-diary-card-c1473
+    value: dinero-3e826
+  - variable: FBASE_CLIENT_EMAIL
+    secret: FIREBASE_CLIENT_EMAIL
+  - variable: FBASE_PRIVATE_KEY
+    secret: FIREBASE_PRIVATE_KEY
