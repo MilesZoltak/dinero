@@ -6,24 +6,18 @@ import {
   Sparkles, 
   ArrowRight, 
   Database,
-  CloudLightning,
-  Lock,
-  Mail,
-  UserPlus
+  CloudLightning
 } from 'lucide-react';
 import { auth, isFirebaseEnabled } from '@/lib/firebaseClient';
 import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
   onAuthStateChanged
 } from 'firebase/auth';
 
 export default function EntryPage() {
   const router = useRouter();
   const [firebaseActive, setFirebaseActive] = useState<boolean>(false);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -33,7 +27,6 @@ export default function EntryPage() {
     setFirebaseActive(active);
 
     if (active && auth) {
-      // Listen for authenticated session
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           router.push('/dashboard');
@@ -46,22 +39,20 @@ export default function EntryPage() {
     }
   }, [router]);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) return;
+  const handleGoogleSignIn = async () => {
+    if (!auth) return;
     setError(null);
     setLoading(true);
 
     try {
-      if (isRegistering) {
-        await createUserWithEmailAndPassword(auth!, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth!, email, password);
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       router.push('/dashboard');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Authentication failed. Please verify credentials.');
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message || 'Google Sign-In failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -74,8 +65,8 @@ export default function EntryPage() {
   if (checkingAuth) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(0,229,255,0.1)', borderTopColor: '#00e5ff', borderRadius: '50%' }} className="animate-spin"></div>
-        <span style={{ color: 'var(--text-secondary)' }}>Securing connection...</span>
+        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(16, 185, 129, 0.15)', borderTopColor: '#10b981', borderRadius: '50%' }} className="animate-spin"></div>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Securing connection...</span>
       </div>
     );
   }
@@ -91,107 +82,86 @@ export default function EntryPage() {
     }}>
       
       {/* Brand logo container */}
-      <div style={{ textAlign: 'center', marginBottom: '32px' }} className="animated-fade-in">
+      <div style={{ textAlign: 'center', marginBottom: '28px' }} className="animated-fade-in">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '12px' }}>
-          <Sparkles size={40} style={{ color: '#00e5ff' }} />
+          <Sparkles size={38} style={{ color: '#10b981' }} />
           <span style={{ fontSize: '42px', fontWeight: 800, background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.04em' }}>dinero</span>
         </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '16px', maxWidth: '440px', margin: '0 auto', lineHeight: '1.6' }}>
-          Get your assets, credit cards, investments, 401ks, and HSAs organized under one roof. Clean, beautiful, and completely custom.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '15px', maxWidth: '420px', margin: '0 auto', lineHeight: '1.55' }}>
+          Your personal financial center. Track accounts, spend, and wealth seamlessly in one place.
         </p>
       </div>
 
       {/* Database status banner */}
-      <div className="animated-fade-in" style={{ width: '100%', maxWidth: '440px', marginBottom: '24px' }}>
+      <div className="animated-fade-in" style={{ width: '100%', maxWidth: '420px', marginBottom: '20px' }}>
         {firebaseActive ? (
-          <div className="system-notification info" style={{ margin: 0, justifyContent: 'center' }}>
-            <CloudLightning size={16} style={{ color: '#10b981', marginRight: '8px' }} />
-            <span>Cloud authentication enabled. Sign in to secure your portfolio.</span>
+          <div className="system-notification info" style={{ margin: 0, justifyContent: 'center', fontSize: '13px', padding: '10px 14px' }}>
+            <CloudLightning size={16} style={{ color: '#10b981', marginRight: '8px', flexShrink: 0 }} />
+            <span>Cloud sync active</span>
           </div>
         ) : (
-          <div className="system-notification" style={{ margin: 0, justifyContent: 'center', background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.15)' }}>
-            <Database size={16} style={{ color: '#f59e0b', marginRight: '8px' }} />
-            <span>Running locally. No credentials required to test dashboard.</span>
+          <div className="system-notification" style={{ margin: 0, justifyContent: 'center', background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.15)', fontSize: '13px', padding: '10px 14px' }}>
+            <Database size={16} style={{ color: '#f59e0b', marginRight: '8px', flexShrink: 0 }} />
+            <span>Developer Sandbox (Local JSON)</span>
           </div>
         )}
       </div>
 
       {/* Main card interface */}
-      <div className="glass-panel animated-fade-in" style={{ width: '100%', maxWidth: '440px', padding: '36px' }}>
+      <div className="glass-panel animated-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '32px 28px' }}>
         {firebaseActive ? (
-          /* Cloud Auth Form */
-          <form onSubmit={handleAuth}>
+          <div style={{ textAlign: 'center' }}>
             <div className="form-header" style={{ marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '24px' }}>{isRegistering ? 'Create Portfolio' : 'Welcome Back'}</h2>
-              <p style={{ color: 'var(--text-secondary)' }}>
-                {isRegistering ? 'Enter email and password to secure your assets' : 'Enter credentials to access your dashboard'}
+              <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>Welcome to Dinero</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.5' }}>
+                Sign in with your Google account to access your portfolio securely.
               </p>
             </div>
 
             {error && (
-              <div className="system-notification" style={{ background: 'rgba(244,63,94,0.1)', borderColor: 'rgba(244,63,94,0.2)', color: 'var(--color-expense)', marginBottom: '16px' }}>
+              <div className="system-notification" style={{ background: 'rgba(244,63,94,0.1)', borderColor: 'rgba(244,63,94,0.2)', color: 'var(--color-expense)', marginBottom: '20px', padding: '10px 14px' }}>
                 <span style={{ fontSize: '13px' }}>{error}</span>
               </div>
             )}
 
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input 
-                  type="email" 
-                  className="input-field" 
-                  placeholder="name@domain.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ paddingLeft: '40px' }}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '24px' }}>
-              <label className="form-label">Security Password</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input 
-                  type="password" 
-                  className="input-field" 
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingLeft: '40px' }}
-                  required
-                />
-              </div>
-            </div>
-
             <button 
-              type="submit" 
-              className="btn btn-primary" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              type="button" 
+              onClick={handleGoogleSignIn}
               disabled={loading}
+              style={{ 
+                width: '100%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                gap: '12px',
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: 'rgba(255, 255, 255, 0.06)',
+                color: '#ffffff',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')}
             >
-              <span>{isRegistering ? 'Build Portfolio' : 'Access Dashboard'}</span>
-              <ArrowRight size={16} />
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
             </button>
-
-            <div className="auth-switch-text">
-              {isRegistering ? 'Already have an account?' : 'New to Dinero?'}
-              <span 
-                className="auth-switch-link" 
-                onClick={() => { setIsRegistering(!isRegistering); setError(null); }}
-              >
-                {isRegistering ? 'Sign In' : 'Create Account'}
-              </span>
-            </div>
-          </form>
+          </div>
         ) : (
           /* Local Offline Entry */
           <div style={{ textAlign: 'center' }}>
-            <div className="form-header" style={{ marginBottom: '28px' }}>
-              <h2 style={{ fontSize: '24px' }}>Offline Sandbox</h2>
-              <p style={{ color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+            <div className="form-header" style={{ marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '6px' }}>Offline Sandbox</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.5' }}>
                 You are in developer mode. Your accounts and transactions will be saved to your local project folder (<code>data/db.json</code>).
               </p>
             </div>
@@ -199,7 +169,7 @@ export default function EntryPage() {
             <button 
               onClick={handleLocalAccess}
               className="btn btn-primary" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '16px' }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px' }}
             >
               <span>Launch Dashboard</span>
               <ArrowRight size={18} />
@@ -211,3 +181,4 @@ export default function EntryPage() {
     </div>
   );
 }
+
