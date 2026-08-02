@@ -92,20 +92,7 @@ export default function EntryPage() {
         </p>
       </div>
 
-      {/* Database status banner */}
-      <div className="animated-fade-in" style={{ width: '100%', maxWidth: '420px', marginBottom: '20px' }}>
-        {firebaseActive ? (
-          <div className="system-notification info" style={{ margin: 0, justifyContent: 'center', fontSize: '13px', padding: '10px 14px' }}>
-            <CloudLightning size={16} style={{ color: '#10b981', marginRight: '8px', flexShrink: 0 }} />
-            <span>Cloud sync active</span>
-          </div>
-        ) : (
-          <div className="system-notification" style={{ margin: 0, justifyContent: 'center', background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.15)', fontSize: '13px', padding: '10px 14px' }}>
-            <Database size={16} style={{ color: '#f59e0b', marginRight: '8px', flexShrink: 0 }} />
-            <span>Developer Sandbox (Local JSON)</span>
-          </div>
-        )}
-      </div>
+
 
       {/* Main card interface */}
       <div className="glass-panel animated-fade-in" style={{ width: '100%', maxWidth: '420px', padding: '32px 28px' }}>
