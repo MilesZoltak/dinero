@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { plaidClient, isPlaidEnabled } from '@/lib/plaidClient';
+import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { dbAdapter, Account, Transaction, PlaidItem } from '@/lib/db';
 import { syncSimpleFinData } from '@/app/api/simplefin/link/route';
 
@@ -65,6 +65,7 @@ export async function POST() {
 
       // --- Real Plaid Sync ---
       try {
+        const plaidClient = getPlaidClient();
         const accessToken = item.accessToken;
         const accountsResponse = await plaidClient!.accountsGet({ access_token: accessToken });
         const plaidAccounts = accountsResponse.data.accounts;
