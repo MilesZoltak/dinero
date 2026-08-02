@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -19,6 +19,7 @@ if (firebaseConfig.apiKey) {
   try {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
     db = getFirestore(app);
     console.log('Firebase Client SDK initialized successfully.');
   } catch (error) {

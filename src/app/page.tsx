@@ -46,11 +46,23 @@ export default function EntryPage() {
 
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
       router.push('/dashboard');
     } catch (err: any) {
-      console.error(err);
-      if (err.code !== 'auth/popup-closed-by-user') {
+      console.error('Google Sign-In Error:', err);
+      
+      // Handle browser popup blocks or IndexedDB closing errors
+      if (err.code === 'auth/internal-error' || err.code === 'auth/web-storage-unsupported' || err.message?.includes('database closing')) {
+        try {
+          const provider = new GoogleAuthProvider();
+          const { signInWithRedirect } = await import('firebase/auth');
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr: any) {
+          setError('Storage access blocked by browser settings. Please check cookies/storage permissions.');
+        }
+      } else if (err.code !== 'auth/popup-closed-by-user') {
         setError(err.message || 'Google Sign-In failed. Please try again.');
       }
     } finally {
