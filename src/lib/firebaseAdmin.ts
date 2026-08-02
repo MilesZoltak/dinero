@@ -1,6 +1,5 @@
-import admin from 'firebase-admin';
-
 let db: any = null;
+let admin: any = null;
 
 try {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -8,6 +7,7 @@ try {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
+    admin = require('firebase-admin');
     const adminAny = admin as any;
     if (!adminAny.apps || !adminAny.apps.length) {
       let formattedPrivateKey = privateKey.replace(/^"|"$/g, '');
