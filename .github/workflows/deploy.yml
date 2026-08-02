@@ -1,0 +1,70 @@
+name: Smart Deploy Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Build & Typecheck Audit
+  audit-and-build:
+    name: Audit & Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check TypeScript & Build
+        run: npm run build
+
+  # Job 2: Smart Firebase Deploy (Runs ONLY on merges/pushes to main when relevant files changed)
+  deploy-firebase:
+    name: Smart Firebase Deploy
+    needs: audit-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Path Filter (Smart Change Detection)
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            web:
+              - 'src/**'
+              - 'public/**'
+              - 'next.config.ts'
+              - 'package.json'
+              - 'firebase.json'
+              - '.firebaserc'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        if: steps.changes.outputs.web == 'true'
+        run: npm ci
+
+      - name: Deploy to Firebase Hosting & SSR Cloud Run
+        if: steps.changes.outputs.web == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 }}'
+          channelId: live
+          projectId: dinero-3e826
