@@ -413,7 +413,7 @@ export default function SpendHubPage() {
     }]
   };
 
-  const doughnutOptions = {
+  const createDoughnutOptions = (categoriesList: [string, number][], type: 'spend' | 'income') => ({
     cutout: '75%',
     plugins: {
       legend: { display: false },
@@ -423,8 +423,44 @@ export default function SpendHubPage() {
         }
       }
     },
-    maintainAspectRatio: false
-  };
+    maintainAspectRatio: false,
+    onClick: (event: any, elements: any[]) => {
+      if (elements && elements.length > 0) {
+        const index = elements[0].index;
+        const clickedCat = categoriesList[index]?.[0];
+        if (clickedCat) {
+          setSelectedCategory(clickedCat);
+          setSelectedCategoryType(type);
+          setSelectedMerchant(null);
+          setSelectedSubcategory(null);
+          setDrilldownTab('subcategories');
+          setPendingUpdates({});
+        }
+      }
+    }
+  });
+
+  const createFilterDoughnutOptions = (onSelect: (item: string) => void, getItemName: (index: number) => string | undefined) => ({
+    cutout: '75%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => ` ${context.label}: ${formatCurrency(context.raw)}`
+        }
+      }
+    },
+    maintainAspectRatio: false,
+    onClick: (event: any, elements: any[]) => {
+      if (elements && elements.length > 0) {
+        const index = elements[0].index;
+        const itemName = getItemName(index);
+        if (itemName) {
+          onSelect(itemName);
+        }
+      }
+    }
+  });
 
   // Top 5 businesses for secondary Doughnut chart, group the rest
   const topBusinessesLimit = 5;
@@ -439,7 +475,15 @@ export default function SpendHubPage() {
     businessChartDataPoints.push(otherBusinessesSum);
   }
 
-  const businessChartColors = ['#10b981', '#f59e0b', '#ff4d4d', '#34d399', '#84cc16', '#a855f7', '#d97706'];
+  const businessChartColors = [
+    '#e07a5f', /* Terracotta Earth */
+    '#52796f', /* Forest Evergreen */
+    '#d4a373', /* Sandstone Wood */
+    '#7fb069', /* Sage Green */
+    '#a3c9a8', /* Moss Green */
+    '#b5838d', /* Muted Clay Rose */
+    '#6b705c', /* Deep Olive */
+  ];
 
   const businessChartData = {
     labels: businessChartLabels,
@@ -453,13 +497,21 @@ export default function SpendHubPage() {
   };
 
   // Subcategory chart colors and data
-  const subcategoryChartColors = ['#10b981', '#f59e0b', '#ff4d4d', '#34d399', '#84cc16', '#d97706', '#a855f7', '#6ee7b7'];
+  const subcategoryChartColors = [
+    '#52796f', /* Forest Evergreen */
+    '#d4a373', /* Sandstone Wood */
+    '#e07a5f', /* Terracotta Earth */
+    '#7fb069', /* Sage Green */
+    '#a3c9a8', /* Moss Green */
+    '#b5838d', /* Muted Clay Rose */
+    '#6b705c', /* Deep Olive */
+  ];
   const subcategoryChartData = {
     labels: sortedSubcategories.map(([sub]) => sub),
     datasets: [{
       data: sortedSubcategories.map(([, amt]) => amt),
       backgroundColor: subcategoryChartColors,
-      borderColor: 'rgba(0, 0, 0, 0.4)',
+      borderColor: 'rgba(18, 22, 31, 0.9)',
       borderWidth: 2,
       hoverOffset: 8
     }]
@@ -686,9 +738,9 @@ export default function SpendHubPage() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px', alignItems: 'center' }}>
                   {/* Doughnut Chart */}
-                  <div style={{ height: '180px', position: 'relative' }}>
-                    <Doughnut data={spendChartData} options={doughnutOptions} />
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ height: '180px', position: 'relative', cursor: 'pointer' }}>
+                    <Doughnut data={spendChartData} options={createDoughnutOptions(sortedSpendCategories, 'spend')} />
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Spend</span>
                       <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                         {formatCurrency(totalSpend)}
@@ -764,9 +816,9 @@ export default function SpendHubPage() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px', alignItems: 'center' }}>
                   {/* Doughnut Chart */}
-                  <div style={{ height: '180px', position: 'relative' }}>
-                    <Doughnut data={incomeChartData} options={doughnutOptions} />
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ height: '180px', position: 'relative', cursor: 'pointer' }}>
+                    <Doughnut data={incomeChartData} options={createDoughnutOptions(sortedIncomeCategories, 'income')} />
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Inflow</span>
                       <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                         {formatCurrency(totalIncome)}
@@ -833,8 +885,8 @@ export default function SpendHubPage() {
               className="glass-panel animated-fade-in" 
               style={{ 
                 padding: '28px', 
-                borderLeft: selectedCategoryType === 'spend' ? '4px solid #f43f5e' : '4px solid #10b981',
-                boxShadow: selectedCategoryType === 'spend' ? '0 8px 32px -8px rgba(244,63,94,0.1)' : '0 8px 32px -8px rgba(16,185,129,0.1)'
+                borderLeft: selectedCategoryType === 'spend' ? '4px solid #e07a5f' : '4px solid #52796f',
+                boxShadow: selectedCategoryType === 'spend' ? '0 8px 32px -8px rgba(224,122,95,0.12)' : '0 8px 32px -8px rgba(82,121,111,0.12)'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -842,8 +894,8 @@ export default function SpendHubPage() {
                   <h3 style={{ fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-primary)' }}>
                     <span>Constituent Transactions</span>
                     <span style={{ 
-                      color: selectedCategoryType === 'spend' ? '#f43f5e' : '#10b981', 
-                      background: selectedCategoryType === 'spend' ? 'rgba(244,63,94,0.08)' : 'rgba(16,185,129,0.08)',
+                      color: selectedCategoryType === 'spend' ? '#f4a261' : '#a3c9a8', 
+                      background: selectedCategoryType === 'spend' ? 'rgba(224,122,95,0.1)' : 'rgba(82,121,111,0.12)',
                       padding: '4px 12px',
                       borderRadius: '20px',
                       fontSize: '12px',
@@ -876,9 +928,9 @@ export default function SpendHubPage() {
                   <button
                     onClick={() => { setDrilldownTab('subcategories'); setSelectedSubcategory(null); setSelectedMerchant(null); }}
                     style={{
-                      background: drilldownTab === 'subcategories' ? 'rgba(124, 77, 255, 0.12)' : 'transparent',
+                      background: drilldownTab === 'subcategories' ? 'rgba(212, 163, 115, 0.14)' : 'transparent',
                       border: 'none',
-                      color: drilldownTab === 'subcategories' ? '#818cf8' : 'var(--text-secondary)',
+                      color: drilldownTab === 'subcategories' ? '#d4a373' : 'var(--text-secondary)',
                       padding: '6px 16px',
                       fontSize: '12px',
                       borderRadius: '7px',
@@ -892,9 +944,9 @@ export default function SpendHubPage() {
                   <button
                     onClick={() => { setDrilldownTab('businesses'); setSelectedSubcategory(null); setSelectedMerchant(null); }}
                     style={{
-                      background: drilldownTab === 'businesses' ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
+                      background: drilldownTab === 'businesses' ? 'rgba(127, 176, 105, 0.14)' : 'transparent',
                       border: 'none',
-                      color: drilldownTab === 'businesses' ? '#34d399' : 'var(--text-secondary)',
+                      color: drilldownTab === 'businesses' ? '#7fb069' : 'var(--text-secondary)',
                       padding: '6px 16px',
                       fontSize: '12px',
                       borderRadius: '7px',
@@ -910,11 +962,17 @@ export default function SpendHubPage() {
                 {drilldownTab === 'subcategories' ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px', alignItems: 'center' }}>
                     {/* Subcategory Doughnut Chart */}
-                    <div style={{ height: '200px', position: 'relative' }}>
+                    <div style={{ height: '200px', position: 'relative', cursor: 'pointer' }}>
                       {sortedSubcategories.length > 0 ? (
                         <>
-                          <Doughnut data={subcategoryChartData} options={doughnutOptions} />
-                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <Doughnut 
+                            data={subcategoryChartData} 
+                            options={createFilterDoughnutOptions(
+                              (sub) => setSelectedSubcategory(selectedSubcategory === sub ? null : sub),
+                              (index) => sortedSubcategories[index]?.[0]
+                            )} 
+                          />
+                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <span style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total</span>
                             <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                               {formatCurrency(drillDownTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0))}
@@ -934,9 +992,9 @@ export default function SpendHubPage() {
                         onClick={() => setSelectedSubcategory(null)}
                         style={{
                           padding: '8px 12px', fontSize: '12px', borderRadius: '8px', cursor: 'pointer',
-                          border: '1px solid', borderColor: selectedSubcategory === null ? '#818cf8' : 'rgba(255,255,255,0.03)',
-                          background: selectedSubcategory === null ? 'rgba(124,77,255,0.08)' : 'rgba(255,255,255,0.01)',
-                          color: selectedSubcategory === null ? '#818cf8' : 'var(--text-secondary)',
+                          border: '1px solid', borderColor: selectedSubcategory === null ? '#d4a373' : 'rgba(255,255,255,0.03)',
+                          background: selectedSubcategory === null ? 'rgba(212,163,115,0.12)' : 'rgba(255,255,255,0.01)',
+                          color: selectedSubcategory === null ? '#d4a373' : 'var(--text-secondary)',
                           fontWeight: 600, textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.15s ease'
                         }}
                       >
@@ -954,9 +1012,9 @@ export default function SpendHubPage() {
                             onClick={() => setSelectedSubcategory(isSelected ? null : sub)}
                             style={{
                               padding: '8px 12px', fontSize: '12px', borderRadius: '8px', cursor: 'pointer',
-                              border: '1px solid', borderColor: isSelected ? '#818cf8' : 'rgba(255,255,255,0.03)',
-                              background: isSelected ? 'rgba(124,77,255,0.08)' : 'rgba(255,255,255,0.01)',
-                              color: isSelected ? '#818cf8' : 'var(--text-secondary)',
+                              border: '1px solid', borderColor: isSelected ? '#d4a373' : 'rgba(255,255,255,0.03)',
+                              background: isSelected ? 'rgba(212,163,115,0.12)' : 'rgba(255,255,255,0.01)',
+                              color: isSelected ? '#d4a373' : 'var(--text-secondary)',
                               fontWeight: 600, textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.15s ease'
                             }}
                           >
@@ -964,7 +1022,7 @@ export default function SpendHubPage() {
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />
                               {sub}
                             </span>
-                            <span style={{ fontSize: '10px', fontFamily: 'monospace', color: isSelected ? '#818cf8' : 'var(--text-muted)' }}>
+                            <span style={{ fontSize: '10px', fontFamily: 'monospace', color: isSelected ? '#d4a373' : 'var(--text-muted)' }}>
                               {formatCurrency(total)} ({count})
                             </span>
                           </button>
@@ -975,9 +1033,15 @@ export default function SpendHubPage() {
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px', alignItems: 'center' }}>
                     {/* Business Doughnut Chart */}
-                    <div style={{ height: '200px', position: 'relative' }}>
-                      <Doughnut data={businessChartData} options={doughnutOptions} />
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ height: '200px', position: 'relative', cursor: 'pointer' }}>
+                      <Doughnut 
+                        data={businessChartData} 
+                        options={createFilterDoughnutOptions(
+                          (biz) => setSelectedMerchant(selectedMerchant === biz ? null : biz),
+                          (index) => businessChartLabels[index]
+                        )} 
+                      />
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <span style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total</span>
                         <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                           {formatCurrency(drillDownTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0))}
@@ -991,9 +1055,9 @@ export default function SpendHubPage() {
                         onClick={() => setSelectedMerchant(null)}
                         style={{
                           padding: '8px 12px', fontSize: '12px', borderRadius: '8px', cursor: 'pointer',
-                          border: '1px solid', borderColor: selectedMerchant === null ? '#34d399' : 'rgba(255,255,255,0.03)',
-                          background: selectedMerchant === null ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.01)',
-                          color: selectedMerchant === null ? '#34d399' : 'var(--text-secondary)',
+                          border: '1px solid', borderColor: selectedMerchant === null ? '#7fb069' : 'rgba(255,255,255,0.03)',
+                          background: selectedMerchant === null ? 'rgba(127,176,105,0.12)' : 'rgba(255,255,255,0.01)',
+                          color: selectedMerchant === null ? '#7fb069' : 'var(--text-secondary)',
                           fontWeight: 600, textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.15s ease'
                         }}
                       >
@@ -1011,9 +1075,9 @@ export default function SpendHubPage() {
                             onClick={() => setSelectedMerchant(isSelected ? null : biz)}
                             style={{
                               padding: '8px 12px', fontSize: '12px', borderRadius: '8px', cursor: 'pointer',
-                              border: '1px solid', borderColor: isSelected ? '#34d399' : 'rgba(255,255,255,0.03)',
-                              background: isSelected ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.01)',
-                              color: isSelected ? '#34d399' : 'var(--text-secondary)',
+                              border: '1px solid', borderColor: isSelected ? '#7fb069' : 'rgba(255,255,255,0.03)',
+                              background: isSelected ? 'rgba(127,176,105,0.12)' : 'rgba(255,255,255,0.01)',
+                              color: isSelected ? '#7fb069' : 'var(--text-secondary)',
                               fontWeight: 600, textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.15s ease'
                             }}
                           >
@@ -1021,7 +1085,7 @@ export default function SpendHubPage() {
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />
                               {biz}
                             </span>
-                            <span style={{ fontSize: '10px', fontFamily: 'monospace', color: isSelected ? '#34d399' : 'var(--text-muted)' }}>
+                            <span style={{ fontSize: '10px', fontFamily: 'monospace', color: isSelected ? '#7fb069' : 'var(--text-muted)' }}>
                               {formatCurrency(total)} ({count})
                             </span>
                           </button>
@@ -1049,25 +1113,25 @@ export default function SpendHubPage() {
               >
                 <div 
                   onClick={() => handleSort('date')}
-                  style={{ width: '100px', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'date' ? '#34d399' : 'inherit' }}
+                  style={{ width: '100px', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'date' ? '#7fb069' : 'inherit' }}
                 >
                   Date {sortColumn === 'date' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </div>
                 <div 
                   onClick={() => handleSort('name')}
-                  style={{ flex: 1, cursor: 'pointer', userSelect: 'none', color: sortColumn === 'name' ? '#34d399' : 'inherit' }}
+                  style={{ flex: 1, cursor: 'pointer', userSelect: 'none', color: sortColumn === 'name' ? '#7fb069' : 'inherit' }}
                 >
                   Payee / Originating Account {sortColumn === 'name' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </div>
                 <div 
                   onClick={() => handleSort('amount')}
-                  style={{ width: '120px', textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'amount' ? '#34d399' : 'inherit' }}
+                  style={{ width: '120px', textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'amount' ? '#7fb069' : 'inherit' }}
                 >
                   Amount {sortColumn === 'amount' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </div>
                 <div 
                   onClick={() => handleSort('category')}
-                  style={{ width: '340px', paddingLeft: '24px', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'category' ? '#34d399' : 'inherit' }}
+                  style={{ width: '340px', paddingLeft: '24px', cursor: 'pointer', userSelect: 'none', color: sortColumn === 'category' ? '#7fb069' : 'inherit' }}
                 >
                   Classify (One-Click) {sortColumn === 'category' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </div>
