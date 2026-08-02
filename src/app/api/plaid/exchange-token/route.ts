@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { plaidClient, isPlaidEnabled } from '@/lib/plaidClient';
+import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { dbAdapter, Account, PlaidItem } from '@/lib/db';
 
 export async function POST(request: Request) {
@@ -124,6 +124,7 @@ export async function POST(request: Request) {
     }
 
     // Real Exchange Flow
+    const plaidClient = getPlaidClient();
     const exchangeResponse = await plaidClient!.itemPublicTokenExchange({
       public_token,
     });
