@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:accounts": "node test_accounts.js"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
@@ -27,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "puppeteer": "^25.4.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

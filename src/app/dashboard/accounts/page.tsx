@@ -32,21 +32,26 @@ interface Account {
 }
 
 // Child PlaidLinker component to mount when token is ready
-interface PlaidLinkerProps {
-  token: string;
-  onSuccess: any;
-  onExit: () => void;
-}
-
-function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
+function PlaidButton({ token, onSuccess, onExit, isInvestment }: { token: string; onSuccess: any; onExit: () => void; isInvestment: boolean }) {
+  const openedRef = React.useRef(false);
   const { open, ready } = usePlaidLink({
     token,
-    onSuccess,
-    onExit,
+    onSuccess: (public_token, metadata) => {
+      onSuccess(public_token, metadata);
+    },
+    onExit: (err, metadata) => {
+      if (err && (err.error_code || err.error_message)) {
+        console.error('Plaid Link Exit Error:', err.error_code, err.error_message, metadata);
+      } else {
+        console.log('Plaid Link closed by user or flow completed.');
+      }
+      onExit();
+    },
   });
 
   useEffect(() => {
-    if (ready && open) {
+    if (ready && !openedRef.current) {
+      openedRef.current = true;
       open();
     }
   }, [ready, open]);
@@ -78,6 +83,7 @@ export default function AccountsPage() {
   // Modal toggles
   const [showMockModal, setShowMockModal] = useState(false);
   const [showLinkSelectorModal, setShowLinkSelectorModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
   const fetchAccounts = async () => {
     try {
@@ -104,6 +110,7 @@ export default function AccountsPage() {
   const initiatePlaidLink = async (isInvestment: boolean) => {
     setShowLinkSelectorModal(false);
     setLinkTokenLoading(true);
+    setPlaidToken(null);
     try {
       const res = await fetch('/api/plaid/create-link-token', {
         method: 'POST',
@@ -308,10 +315,11 @@ export default function AccountsPage() {
       
       {/* Dynamic Plaid Linker mount */}
       {plaidToken && !isMockFlow && (
-        <PlaidLinker 
+        <PlaidButton 
           token={plaidToken} 
           onSuccess={handlePlaidSuccess} 
-          onExit={() => setPlaidToken(null)} 
+          onExit={() => setPlaidToken(null)}
+          isInvestment={false}
         />
       )}
 
@@ -382,15 +390,29 @@ export default function AccountsPage() {
                     </div>
                     <div className="accounts-list">
                       {instAccounts.map((acc) => (
-                        <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                        <div 
+                          key={acc.id} 
+                          onClick={() => setSelectedAccount(acc)}
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '10px 12px',
+                            margin: '4px -12px',
+                            borderRadius: '8px',
+                            color: 'inherit',
+                            transition: 'background 0.15s ease',
+                            cursor: 'pointer'
+                          }}
+                          className="account-row-link"
+                        >
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{acc.name}</div>
+                            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{acc.name}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                               {acc.subtype.toUpperCase()} {acc.mask ? `•••• ${acc.mask}` : ''}
-                              {acc.itemId?.startsWith('sfin_') && <span style={{ color: '#10b981', fontSize: '10px', marginLeft: '6px' }}>SimpleFIN</span>}
                             </div>
                           </div>
-                          <div style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: '15px' }}>
+                          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '15px', color: '#7fb069' }}>
                             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(acc.balance)}
                           </div>
                         </div>
@@ -416,12 +438,17 @@ export default function AccountsPage() {
                   {manualAccounts.map((acc) => (
                     <div 
                       key={acc.id} 
+                      onClick={() => setSelectedAccount(acc)}
+                      className="account-row-link"
                       style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center', 
-                        padding: '12px 0',
-                        borderBottom: '1px solid rgba(255,255,255,0.02)'
+                        padding: '12px 12px',
+                        margin: '4px -12px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -436,12 +463,12 @@ export default function AccountsPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: '16px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '16px', color: '#7fb069' }}>
                           {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(acc.balance)}
                         </span>
                         <button 
                           className="btn btn-danger" 
-                          onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id, acc.name); }}
                           style={{ padding: '6px 8px' }}
                         >
                           <Trash2 size={14} />
@@ -592,7 +619,7 @@ export default function AccountsPage() {
               Choose Connection Type
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-              Select your integration method. You can link accounts using Plaid or claim a setup token from your SimpleFIN Bridge.
+              Select your institution type below to launch Plaid Link and securely connect your real bank or investment accounts.
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -604,9 +631,9 @@ export default function AccountsPage() {
                 style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CreditCard style={{ color: 'var(--accent-cyan)' }} />
+                  <CreditCard style={{ color: '#7fb069' }} />
                   <div>
-                    <div style={{ fontWeight: 600 }}>Plaid: Standard Bank / Card</div>
+                    <div style={{ fontWeight: 600 }}>Plaid: Standard Bank / Credit Card</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Checking, Savings, Credit Cards</div>
                   </div>
                 </div>
@@ -620,26 +647,10 @@ export default function AccountsPage() {
                 style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Briefcase style={{ color: 'var(--accent-purple)' }} />
+                  <Briefcase style={{ color: '#d4a373' }} />
                   <div>
                     <div style={{ fontWeight: 600 }}>Plaid: Brokerage & Retirement</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>401(k), IRA, HSA, Portfolios</div>
-                  </div>
-                </div>
-                <Plus size={16} />
-              </button>
-
-              {/* SimpleFIN Bridge */}
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => { setShowLinkSelectorModal(false); setShowSimpleFinModal(true); }}
-                style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Key style={{ color: '#10b981' }} />
-                  <div>
-                    <div style={{ fontWeight: 600 }}>SimpleFIN Bridge (Instant)</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Link banks instantly using a setup token</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>401(k), IRA, HSA, Investment Portfolios</div>
                   </div>
                 </div>
                 <Plus size={16} />
@@ -777,6 +788,77 @@ export default function AccountsPage() {
             >
               Cancel Linkage
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Account Details Popup */}
+      {selectedAccount && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 110,
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div className="glass-panel animated-fade-in" style={{ padding: '36px', maxWidth: '480px', width: '90%', borderLeft: '4px solid #7fb069' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.08em' }}>
+                  {selectedAccount.institutionName}
+                </span>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {selectedAccount.name}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setSelectedAccount(null)}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px', borderRadius: '50%' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Current Balance</span>
+              <div style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'monospace', color: '#7fb069', marginTop: '4px' }}>
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedAccount.balance)}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', display: 'block' }}>Type</span>
+                  <span style={{ fontWeight: 600, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{selectedAccount.type} ({selectedAccount.subtype})</span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', display: 'block' }}>Mask</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{selectedAccount.mask ? `•••• ${selectedAccount.mask}` : 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <a 
+                href="/dashboard/transactions"
+                className="btn btn-primary"
+                style={{ flex: 1, textDecoration: 'none', textAlign: 'center', justifyContent: 'center' }}
+              >
+                View Transactions
+              </a>
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setSelectedAccount(null)}
+                style={{ flex: 1 }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
