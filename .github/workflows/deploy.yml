@@ -61,7 +61,7 @@ jobs:
         run: npm ci
 
       - name: Deploy to Firebase Hosting & SSR Cloud Run
-        if: steps.changes.outputs.web == 'true'
+        if: steps.changes.outputs.web == 'true' && secrets.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 != ''
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
