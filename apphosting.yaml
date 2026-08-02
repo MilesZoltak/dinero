@@ -1,0 +1,8 @@
+# Firebase App Hosting configuration
+runConfig:
+  maxInstances: 10
+  concurrency: 80
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: dbt-diary-card-c1473
