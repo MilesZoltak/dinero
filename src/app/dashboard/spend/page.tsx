@@ -373,9 +373,23 @@ export default function SpendHubPage() {
     }
   });
 
-  // Chart configuration constants (High-contrast Vibrant Palette: Coral Crimson, Emerald Green, Warm Amber, Wood Brown, Mint)
-  const spendColors = ['#ff4d4d', '#10b981', '#f59e0b', '#84cc16', '#a855f7', '#d97706', '#ec4899'];
-  const incomeColors = ['#10b981', '#34d399', '#f59e0b', '#84cc16', '#6ee7b7'];
+  // Chart configuration constants (Harmonized Organic Earth & Sage Palette matching Overview design)
+  const spendColors = [
+    '#e07a5f', /* Terracotta Earth */
+    '#52796f', /* Forest Evergreen */
+    '#d4a373', /* Sandstone Wood */
+    '#7fb069', /* Sage Green */
+    '#a3c9a8', /* Moss Green */
+    '#b5838d', /* Muted Clay Rose */
+    '#6b705c', /* Deep Olive */
+  ];
+  const incomeColors = [
+    '#52796f', /* Forest Evergreen */
+    '#7fb069', /* Sage Green */
+    '#a3c9a8', /* Moss Green */
+    '#d4a373', /* Sandstone Wood */
+    '#ccd5ae', /* Pale Olive */
+  ];
 
   const spendChartData = {
     labels: sortedSpendCategories.map(([cat]) => cat),
@@ -558,17 +572,16 @@ export default function SpendHubPage() {
           
           {/* Cash Flow Cards Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-            
-            {/* Total Expense card */}
-            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #f43f5e' }}>
+                       {/* Total Expense card */}
+            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #e07a5f' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500 }}>Total Outflow (Spending)</span>
-                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#ffb3c1', marginTop: '8px', fontFamily: 'monospace' }}>
+                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#f4a261', marginTop: '8px', fontFamily: 'monospace' }}>
                     {formatCurrency(totalSpend)}
                   </h2>
                 </div>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(244, 63, 94, 0.08)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#f43f5e' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(224, 122, 95, 0.1)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#e07a5f' }}>
                   <TrendingDown size={18} />
                 </div>
               </div>
@@ -576,15 +589,15 @@ export default function SpendHubPage() {
             </div>
 
             {/* Total Income card */}
-            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #10b981' }}>
+            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #52796f' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500 }}>Total Inflow (Deposits)</span>
-                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#a7f3d0', marginTop: '8px', fontFamily: 'monospace' }}>
+                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#a3c9a8', marginTop: '8px', fontFamily: 'monospace' }}>
                     {formatCurrency(totalIncome)}
                   </h2>
                 </div>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.08)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#10b981' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(82, 121, 111, 0.12)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#7fb069' }}>
                   <TrendingUp size={18} />
                 </div>
               </div>
@@ -592,15 +605,15 @@ export default function SpendHubPage() {
             </div>
 
             {/* Net Savings card */}
-            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #34d399' }}>
+            <div className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden', borderLeft: '3px solid #7fb069' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: 500 }}>Net Cash Flow</span>
-                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: netFlow >= 0 ? '#34d399' : '#ffb3c1', marginTop: '8px', fontFamily: 'monospace' }}>
+                  <h2 style={{ fontSize: '32px', fontWeight: 800, color: netFlow >= 0 ? '#7fb069' : '#f4a261', marginTop: '8px', fontFamily: 'monospace' }}>
                     {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow)}
                   </h2>
                 </div>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: netFlow >= 0 ? 'rgba(0, 229, 255, 0.08)' : 'rgba(244, 63, 94, 0.08)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: netFlow >= 0 ? '#34d399' : '#f43f5e' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: netFlow >= 0 ? 'rgba(127, 176, 105, 0.12)' : 'rgba(224, 122, 95, 0.12)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: netFlow >= 0 ? '#7fb069' : '#e07a5f' }}>
                   <ArrowLeftRight size={18} />
                 </div>
               </div>
@@ -626,26 +639,26 @@ export default function SpendHubPage() {
                   <div 
                     style={{ 
                       width: `${totalIncome + totalSpend > 0 ? (totalIncome / (totalIncome + totalSpend)) * 100 : 50}%`, 
-                      background: '#10b981',
+                      background: '#7fb069',
                       transition: 'width 0.5s ease-out' 
                     }} 
                   />
                   <div 
                     style={{ 
                       width: `${totalIncome + totalSpend > 0 ? (totalSpend / (totalIncome + totalSpend)) * 100 : 50}%`, 
-                      background: '#ff4d4d',
+                      background: '#e07a5f',
                       transition: 'width 0.5s ease-out' 
                     }} 
                   />
                 </div>
                 {/* Ratio legend */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 600 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '10px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#7fb069', fontWeight: 600 }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7fb069' }} />
                     Inflow: {((totalIncome / (totalIncome + totalSpend)) * 100).toFixed(0)}%
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e', fontWeight: 600 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f43f5e' }} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#e07a5f', fontWeight: 600 }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e07a5f' }} />
                     Outflow: {((totalSpend / (totalIncome + totalSpend)) * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -659,7 +672,7 @@ export default function SpendHubPage() {
             {/* Outflow Breakdown */}
             <div className="glass-panel" style={{ padding: '24px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
-                <TrendingDown size={16} style={{ color: '#f43f5e' }} />
+                <TrendingDown size={16} style={{ color: '#e07a5f' }} />
                 Outflow Distribution
               </h3>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '24px' }}>
@@ -705,9 +718,9 @@ export default function SpendHubPage() {
                             flexDirection: 'column', 
                             gap: '6px', 
                             width: '100%', 
-                            background: isSelected ? 'rgba(244, 63, 94, 0.04)' : 'rgba(255,255,255,0.01)', 
+                            background: isSelected ? 'rgba(224, 122, 95, 0.08)' : 'rgba(255,255,255,0.01)', 
                             border: '1px solid',
-                            borderColor: isSelected ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255,255,255,0.03)',
+                            borderColor: isSelected ? 'rgba(224, 122, 95, 0.25)' : 'rgba(255,255,255,0.03)',
                             padding: '10px 14px', 
                             borderRadius: '10px', 
                             textAlign: 'left',
@@ -718,7 +731,7 @@ export default function SpendHubPage() {
                           className="category-drill-btn"
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', width: '100%' }}>
-                            <span style={{ color: isSelected ? '#ffb3c1' : 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: isSelected ? '#f4a261' : 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />
                               {cat}
                             </span>
@@ -737,7 +750,7 @@ export default function SpendHubPage() {
             {/* Inflow Breakdown */}
             <div className="glass-panel" style={{ padding: '24px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
-                <TrendingUp size={16} style={{ color: '#10b981' }} />
+                <TrendingUp size={16} style={{ color: '#7fb069' }} />
                 Inflow Distribution
               </h3>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '24px' }}>
