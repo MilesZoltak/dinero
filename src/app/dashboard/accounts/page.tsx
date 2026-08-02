@@ -592,7 +592,7 @@ export default function AccountsPage() {
               Choose Connection Type
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
-              Select your integration method. You can link accounts using Plaid or claim a setup token from your SimpleFIN Bridge.
+              Select your institution type below to launch Plaid Link and securely connect your real bank or investment accounts.
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -604,9 +604,9 @@ export default function AccountsPage() {
                 style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CreditCard style={{ color: 'var(--accent-cyan)' }} />
+                  <CreditCard style={{ color: '#7fb069' }} />
                   <div>
-                    <div style={{ fontWeight: 600 }}>Plaid: Standard Bank / Card</div>
+                    <div style={{ fontWeight: 600 }}>Plaid: Standard Bank / Credit Card</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Checking, Savings, Credit Cards</div>
                   </div>
                 </div>
@@ -620,26 +620,10 @@ export default function AccountsPage() {
                 style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Briefcase style={{ color: 'var(--accent-purple)' }} />
+                  <Briefcase style={{ color: '#d4a373' }} />
                   <div>
                     <div style={{ fontWeight: 600 }}>Plaid: Brokerage & Retirement</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>401(k), IRA, HSA, Portfolios</div>
-                  </div>
-                </div>
-                <Plus size={16} />
-              </button>
-
-              {/* SimpleFIN Bridge */}
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => { setShowLinkSelectorModal(false); setShowSimpleFinModal(true); }}
-                style={{ justifyContent: 'space-between', padding: '16px', textAlign: 'left' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Key style={{ color: '#10b981' }} />
-                  <div>
-                    <div style={{ fontWeight: 600 }}>SimpleFIN Bridge (Instant)</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Link banks instantly using a setup token</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>401(k), IRA, HSA, Investment Portfolios</div>
                   </div>
                 </div>
                 <Plus size={16} />
