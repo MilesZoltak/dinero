@@ -42,14 +42,19 @@ function PlaidLinker({ token, onSuccess, onExit }: PlaidLinkerProps) {
   const { open, ready } = usePlaidLink({
     token,
     onSuccess,
-    onExit,
+    onExit: (err, metadata) => {
+      if (err) {
+        console.error('Plaid Link Exit Error:', err, metadata);
+      }
+      onExit();
+    },
   });
 
   useEffect(() => {
-    if (ready && open) {
+    if (ready) {
       open();
     }
-  }, [ready, open]);
+  }, [ready]);
 
   return null;
 }
@@ -382,18 +387,33 @@ export default function AccountsPage() {
                     </div>
                     <div className="accounts-list">
                       {instAccounts.map((acc) => (
-                        <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                        <a 
+                          key={acc.id} 
+                          href={`/dashboard/transactions`}
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '10px 12px',
+                            margin: '4px -12px',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            transition: 'background 0.15s ease',
+                            cursor: 'pointer'
+                          }}
+                          className="account-row-link"
+                        >
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{acc.name}</div>
+                            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{acc.name}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                               {acc.subtype.toUpperCase()} {acc.mask ? `•••• ${acc.mask}` : ''}
-                              {acc.itemId?.startsWith('sfin_') && <span style={{ color: '#10b981', fontSize: '10px', marginLeft: '6px' }}>SimpleFIN</span>}
                             </div>
                           </div>
-                          <div style={{ fontFamily: 'Outfit', fontWeight: 700, fontSize: '15px' }}>
+                          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '15px', color: '#7fb069' }}>
                             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(acc.balance)}
                           </div>
-                        </div>
+                        </a>
                       ))}
                     </div>
                   </div>

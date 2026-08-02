@@ -603,6 +603,10 @@ h1, h2, h3, h4, h5, h6 {
   margin-left: 8px;
 }
 
+.account-row-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 /* KEYFRAMES FOR ANIMATIONS */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(3px); }
