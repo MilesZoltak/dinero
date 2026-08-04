@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:accounts": "node test_accounts.js"
+    "test:accounts": "node test_accounts.js",
+    "test:assistant": "node test_assistant_e2e.js"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
