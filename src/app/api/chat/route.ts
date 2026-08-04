@@ -101,7 +101,7 @@ export async function POST(request: Request) {
           let responseContent = '';
 
           // If Gemini API Key exists and is valid, invoke function calling API loop
-          if (apiKey && process.env.GEMINI_API_KEY) {
+          if (apiKey && apiKey.startsWith('AIza')) {
             try {
               const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
               
