@@ -63,22 +63,14 @@ export async function DELETE(request: Request) {
       await dbAdapter.deleteAccount(accountId);
       return NextResponse.json({ success: true, message: 'Manual account deleted successfully.' });
     } else {
-      // For automated accounts, unlink the entire connection (Plaid Item or SimpleFIN Connection)
+      // For automated accounts, unlink the entire connection (Plaid Item)
       const itemId = account.itemId;
       if (itemId) {
-        if (itemId.startsWith('sfin_')) {
-          await dbAdapter.deleteSimpleFinConnection(itemId);
-          return NextResponse.json({
-            success: true,
-            message: 'SimpleFIN connection and all associated accounts unlinked successfully.',
-          });
-        } else {
-          await dbAdapter.deletePlaidItem(itemId);
-          return NextResponse.json({
-            success: true,
-            message: 'Plaid institution and all associated accounts unlinked successfully.',
-          });
-        }
+        await dbAdapter.deletePlaidItem(itemId);
+        return NextResponse.json({
+          success: true,
+          message: 'Plaid institution and all associated accounts unlinked successfully.',
+        });
       } else {
         await dbAdapter.deleteAccount(accountId);
         return NextResponse.json({ success: true, message: 'Account deleted.' });
@@ -89,3 +81,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
   }
 }
+

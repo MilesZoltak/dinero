@@ -2,36 +2,27 @@ let db: any = null;
 let admin: any = null;
 
 try {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  admin = require('firebase-admin');
+  const adminAny = admin as any;
 
-  if (projectId && clientEmail && privateKey) {
-    admin = require('firebase-admin');
-    const adminAny = admin as any;
-    if (!adminAny.apps || !adminAny.apps.length) {
-      let formattedPrivateKey = privateKey.replace(/^"|"$/g, '');
-      if (!formattedPrivateKey.includes('\n') && formattedPrivateKey.includes('\\n')) {
-        formattedPrivateKey = formattedPrivateKey.replace(/\\n/g, '\n');
-      }
-      adminAny.initializeApp({
-        credential: adminAny.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey: formattedPrivateKey,
-        }),
-      });
-    }
-    db = adminAny.firestore();
-    console.log('Firebase Admin SDK initialized successfully.');
-  } else {
-    console.warn(
-      'Firebase server-side credentials missing in .env.local. Falling back to local data file database.'
-    );
+  if (!adminAny.apps || !adminAny.apps.length) {
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'dinero-3e826';
+    
+    // Uses Google Managed Identity / Application Default Credentials (ADC)
+    // In local dev: uses `gcloud auth application-default login`
+    // In GCP / App Hosting: uses Google Managed Identity automatically
+    adminAny.initializeApp({
+      projectId,
+      credential: adminAny.credential.applicationDefault(),
+    });
   }
+
+  db = adminAny.firestore();
+  console.log('Firebase Admin SDK initialized successfully using Managed Identity / ADC.');
 } catch (error) {
-  console.error('Failed to initialize Firebase Admin SDK:', error);
+  console.error('Failed to initialize Firebase Admin SDK via Managed Identity:', error);
 }
 
 export { db };
 export default admin;
+

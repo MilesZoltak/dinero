@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { dbAdapter, Account, Transaction, PlaidItem } from '@/lib/db';
-import { syncSimpleFinData } from '@/app/api/simplefin/link/route';
 
 export async function POST() {
   try {
     const plaidItems = await dbAdapter.getPlaidItems();
-    const simpleFinConns = await dbAdapter.getSimpleFinConnections();
     const accounts = await dbAdapter.getAccounts();
 
-    if (plaidItems.length === 0 && simpleFinConns.length === 0) {
+    if (plaidItems.length === 0) {
       return NextResponse.json({
         message: 'No connected accounts to sync. Please link an institution first.',
         syncedCount: 0,
@@ -123,16 +121,6 @@ export async function POST() {
       }
     }
 
-    // 2. Sync SimpleFIN Feeds
-    for (const conn of simpleFinConns) {
-      try {
-        await syncSimpleFinData(conn);
-        syncedItemsCount++;
-      } catch (innerError: any) {
-        console.error(`Failed to sync SimpleFIN connection ${conn.id}:`, innerError);
-      }
-    }
-
     // Retrieve fresh lists
     const updatedAccounts = await dbAdapter.getAccounts();
     const updatedTransactions = await dbAdapter.getTransactions();
@@ -151,3 +139,4 @@ export async function POST() {
     );
   }
 }
+
