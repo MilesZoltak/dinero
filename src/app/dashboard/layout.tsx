@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebaseClient';
+import ChatSidebar from '@/components/chat/ChatSidebar';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -14,7 +15,8 @@ import {
   Database,
   CloudLightning,
   Sparkles,
-  TrendingDown
+  TrendingDown,
+  Bot
 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -26,6 +28,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [isCloudMode, setIsCloudMode] = useState<boolean | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Auth Guard: redirect unauthenticated users back to login page
   useEffect(() => {
@@ -87,14 +90,23 @@ export default function DashboardLayout({
           </div>
           <span className="logo-text">dinero</span>
         </div>
-        <button 
-          onClick={handleSignOut}
-          className="btn btn-secondary"
-          style={{ padding: '6px 12px', fontSize: '12px', gap: '6px' }}
-        >
-          <LogOut size={14} />
-          <span>Sign Out</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+          >
+            <Bot size={14} />
+            <span>Assistant</span>
+          </button>
+          <button 
+            onClick={handleSignOut}
+            className="btn btn-secondary"
+            style={{ padding: '6px 12px', fontSize: '12px', gap: '6px' }}
+          >
+            <LogOut size={14} />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </header>
 
       {/* Desktop Sidebar */}
@@ -121,6 +133,14 @@ export default function DashboardLayout({
               </Link>
             );
           })}
+
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="nav-item flex items-center gap-2 w-full text-left mt-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-colors rounded-lg px-4 py-3"
+          >
+            <Bot size={20} />
+            <span className="font-semibold text-sm">Dinero Assistant</span>
+          </button>
         </nav>
 
         {/* Sidebar Sign Out Footer */}
@@ -157,6 +177,9 @@ export default function DashboardLayout({
       <main className="main-content">
         {children}
       </main>
+
+      {/* Dinero AI Assistant Drawer */}
+      <ChatSidebar isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       {/* Mobile Fixed Bottom Tab Bar */}
       <nav className="mobile-bottom-nav">
