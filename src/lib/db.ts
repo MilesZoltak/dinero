@@ -12,7 +12,7 @@ export interface Account {
   limit?: number | null;
   institutionName: string;
   isManual: boolean;
-  itemId?: string | null; // Can hold Plaid Item ID or SimpleFIN Connection ID
+  itemId?: string | null; // Holds Plaid Item ID
   lastSync?: string | null;
 }
 
@@ -35,12 +35,6 @@ export interface PlaidItem {
   institutionName: string;
 }
 
-export interface SimpleFinConnection {
-  id: string;
-  accessUrl: string;
-  orgName: string;
-}
-
 export interface CategoryRule {
   id: string;
   pattern: string;
@@ -52,7 +46,6 @@ interface LocalDatabase {
   accounts: Account[];
   transactions: Transaction[];
   plaidItems: PlaidItem[];
-  simpleFinConnections: SimpleFinConnection[];
   categoryRules: CategoryRule[];
 }
 
@@ -72,7 +65,7 @@ function initLocalDb() {
   if (!fs.existsSync(LOCAL_DB_PATH)) {
     fs.writeFileSync(
       LOCAL_DB_PATH,
-      JSON.stringify({ accounts: [], transactions: [], plaidItems: [], simpleFinConnections: [], categoryRules: [] }, null, 2)
+      JSON.stringify({ accounts: [], transactions: [], plaidItems: [], categoryRules: [] }, null, 2)
     );
   }
 }
@@ -87,12 +80,11 @@ function readLocalDb(): LocalDatabase {
       accounts: parsed.accounts || [],
       transactions: parsed.transactions || [],
       plaidItems: parsed.plaidItems || [],
-      simpleFinConnections: parsed.simpleFinConnections || [],
       categoryRules: parsed.categoryRules || [],
     };
   } catch (error) {
     console.error('Error reading local db.json, resetting database:', error);
-    return { accounts: [], transactions: [], plaidItems: [], simpleFinConnections: [], categoryRules: [] };
+    return { accounts: [], transactions: [], plaidItems: [], categoryRules: [] };
   }
 }
 
@@ -270,63 +262,6 @@ export const dbAdapter = {
     writeLocalDb(local);
   },
 
-  // --- SimpleFIN Connections ---
-  async getSimpleFinConnections(): Promise<SimpleFinConnection[]> {
-    if (isFirestoreEnabled()) {
-      try {
-        const snapshot = await firestoreDb!.collection('simpleFinConnections').get();
-        return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as SimpleFinConnection));
-      } catch (error) {
-        console.error('Firestore failed to get SimpleFIN connections, falling back to local database:', error);
-      }
-    }
-    return readLocalDb().simpleFinConnections;
-  },
-
-  async saveSimpleFinConnection(conn: SimpleFinConnection): Promise<void> {
-    if (isFirestoreEnabled()) {
-      try {
-        await firestoreDb!.collection('simpleFinConnections').doc(conn.id).set(conn);
-        return;
-      } catch (error) {
-        console.error('Firestore failed to save SimpleFIN connection, falling back to local database:', error);
-      }
-    }
-    const local = readLocalDb();
-    const index = local.simpleFinConnections.findIndex((c) => c.id === conn.id);
-    if (index >= 0) {
-      local.simpleFinConnections[index] = conn;
-    } else {
-      local.simpleFinConnections.push(conn);
-    }
-    writeLocalDb(local);
-  },
-
-  async deleteSimpleFinConnection(id: string): Promise<void> {
-    if (isFirestoreEnabled()) {
-      try {
-        await firestoreDb!.collection('simpleFinConnections').doc(id).delete();
-        const accountsSnapshot = await firestoreDb!.collection('accounts').where('itemId', '==', id).get();
-        const batch = firestoreDb!.batch();
-        for (const doc of accountsSnapshot.docs) {
-          batch.delete(doc.ref);
-          const txsSnapshot = await firestoreDb!.collection('transactions').where('accountId', '==', doc.id).get();
-          txsSnapshot.docs.forEach((tDoc: any) => batch.delete(tDoc.ref));
-        }
-        await batch.commit();
-        return;
-      } catch (error) {
-        console.error('Firestore failed to delete SimpleFIN connection, falling back to local database:', error);
-      }
-    }
-    const local = readLocalDb();
-    const accountsToDelete = local.accounts.filter((a) => a.itemId === id).map((a) => a.id);
-    local.simpleFinConnections = local.simpleFinConnections.filter((c) => c.id !== id);
-    local.accounts = local.accounts.filter((a) => a.itemId !== id);
-    local.transactions = local.transactions.filter((t) => !accountsToDelete.includes(t.accountId));
-    writeLocalDb(local);
-  },
-
   // --- Category Rules ---
   async getCategoryRules(): Promise<CategoryRule[]> {
     if (isFirestoreEnabled()) {
@@ -373,3 +308,4 @@ export const dbAdapter = {
     writeLocalDb(local);
   }
 };
+

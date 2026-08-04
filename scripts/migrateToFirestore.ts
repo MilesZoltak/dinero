@@ -39,14 +39,8 @@ async function migrate() {
     }
   }
 
-  if (data.simpleFinConnections && data.simpleFinConnections.length > 0) {
-    console.log(`Migrating ${data.simpleFinConnections.length} SimpleFIN connections...`);
-    for (const conn of data.simpleFinConnections) {
-      await dbAdapter.saveSimpleFinConnection(conn);
-    }
-  }
-
   console.log('Migration complete!');
 }
 
 migrate().catch(console.error);
+
