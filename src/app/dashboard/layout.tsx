@@ -74,11 +74,14 @@ export default function DashboardLayout({
         const { signOut } = await import('firebase/auth');
         await signOut(auth);
       }
-      router.push('/');
+      // Force navigation to home with replace to avoid router stack caching
+      window.location.href = '/';
     } catch (err) {
       console.error('Sign out error:', err);
+      window.location.href = '/';
     }
   };
+
 
   return (
     <div className="layout-wrapper animated-fade-in">
