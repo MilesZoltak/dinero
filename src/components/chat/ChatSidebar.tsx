@@ -140,6 +140,7 @@ export default function ChatSidebar() {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = '';
+      let buffer = '';
 
       if (reader) {
         let done = false;
@@ -147,12 +148,15 @@ export default function ChatSidebar() {
           const { value, done: doneReading } = await reader.read();
           done = doneReading;
           if (value) {
-            const chunkValue = decoder.decode(value);
-            const lines = chunkValue.split('\n');
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            // Keep incomplete last line in buffer
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const dataStr = line.replace('data: ', '').trim();
+              const trimmedLine = line.trim();
+              if (trimmedLine.startsWith('data: ')) {
+                const dataStr = trimmedLine.slice(6).trim();
                 if (dataStr === '[DONE]') break;
                 try {
                   const parsed = JSON.parse(dataStr);
@@ -163,7 +167,7 @@ export default function ChatSidebar() {
                     );
                   }
                 } catch (e) {
-                  // ignore partial JSON chunks
+                  // Buffer partial line
                 }
               }
             }
@@ -389,28 +393,29 @@ export default function ChatSidebar() {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                 >
-                  {msg.role === 'assistant' && (
-                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 text-xs mt-0.5">
-                      <Bot className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs mt-0.5 ${
+                      msg.role === 'user'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-gray-800 text-emerald-400 border border-gray-700'
+                    }`}
+                  >
+                    {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                  </div>
 
                   <div
                     className={`dinero-chat-bubble ${
                       msg.role === 'user' ? 'dinero-chat-bubble-user' : 'dinero-chat-bubble-assistant'
                     }`}
                   >
-                    {msg.role === 'user' ? msg.content : renderMessageContent(msg.content)}
-                    <span className="block text-[9px] opacity-50 mt-1 text-right">{msg.timestamp}</span>
-                  </div>
-
-                  {msg.role === 'user' && (
-                    <div className="w-6 h-6 rounded-full bg-white/10 text-gray-300 flex items-center justify-center shrink-0 text-xs mt-0.5">
-                      <User className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-between gap-3 mb-1 pb-1 border-b border-white/10 text-[10px] opacity-75">
+                      <span className="font-semibold">{msg.role === 'user' ? 'You' : 'Dinero Assistant'}</span>
+                      <span>{msg.timestamp}</span>
                     </div>
-                  )}
+                    {msg.role === 'user' ? msg.content : renderMessageContent(msg.content)}
+                  </div>
                 </div>
               ))
             )}
