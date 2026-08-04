@@ -58,6 +58,18 @@ const puppeteer = require('puppeteer');
     });
 
     console.log('📥 Rendered Chat Bubbles:\n', messages.join('\n---\n'));
+
+    // STRICT NO-ERROR ASSERTION IN E2E UI TEST
+    const assistantResponse = messages[messages.length - 1] || '';
+    if (
+      assistantResponse.includes('Error:') ||
+      assistantResponse.includes('fetch failed') ||
+      assistantResponse.includes('Failed to send message') ||
+      assistantResponse.includes('HTTP 500')
+    ) {
+      throw new Error(`E2E assertion failed: UI displayed error bubble: "${assistantResponse}"`);
+    }
+
     console.log('✅ PASS: Assistant streaming response received and formatted in DOM.');
 
     // 5. Test close confirmation modal

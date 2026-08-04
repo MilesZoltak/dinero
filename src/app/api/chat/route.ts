@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     // Truncate context to last 20 turns
     const recentMessages = messages.slice(-20);
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const contents = recentMessages.map((m: any) => ({
       role: m.role === 'user' ? 'user' : 'model',
