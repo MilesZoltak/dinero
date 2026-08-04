@@ -134,7 +134,15 @@ export default function ChatSidebar() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to send message');
+        let errMessage = `HTTP ${res.status} Error`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errMessage = errData.error;
+        } catch {
+          const txt = await res.text();
+          if (txt) errMessage = txt;
+        }
+        throw new Error(errMessage);
       }
 
       const reader = res.body?.getReader();
@@ -174,15 +182,15 @@ export default function ChatSidebar() {
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching chat response:', err);
+      const errMsg = err.message || 'Error communicating with assistant service.';
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId
             ? {
                 ...msg,
-                content:
-                  'Sorry, I encountered an error communicating with the financial assistant service. Please try again.',
+                content: `⚠️ **Error**: ${errMsg}`,
               }
             : msg
         )
