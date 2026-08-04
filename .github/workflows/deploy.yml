@@ -7,7 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-  # Job 1: Build & Typecheck Audit
   audit-and-build:
     name: Audit & Build Verification
     runs-on: ubuntu-latest
@@ -27,7 +26,6 @@ jobs:
       - name: Check TypeScript & Build
         run: npm run build
 
-  # Job 2: Smart Firebase Deploy (Runs ONLY on merges/pushes to main when relevant files changed)
   deploy-firebase:
     name: Smart Firebase Deploy
     needs: audit-and-build
@@ -61,10 +59,11 @@ jobs:
         run: npm ci
 
       - name: Deploy to Firebase Hosting & SSR Cloud Run
-        if: steps.changes.outputs.web == 'true' && secrets.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 != ''
+        if: steps.changes.outputs.web == 'true' && secrets.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 }}'
           channelId: live
           projectId: dinero-3e826
+
