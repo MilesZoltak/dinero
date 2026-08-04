@@ -191,12 +191,21 @@ Always remind users that AI suggestions are for informational purposes only.`,
           const chunkSize = 20;
           for (let i = 0; i < responseContent.length; i += chunkSize) {
             const chunk = responseContent.slice(i, i + chunkSize);
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
+            } catch {
+              // Client disconnected or closed stream early
+              return;
+            }
             await new Promise((resolve) => setTimeout(resolve, 15));
           }
 
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          controller.close();
+          try {
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+            controller.close();
+          } catch {
+            // Controller closed
+          }
         } catch (err) {
           console.error('Streaming response error:', err);
           controller.error(err);
