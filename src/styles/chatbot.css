@@ -118,27 +118,26 @@
 }
 
 .dinero-chat-bubble {
-  max-width: 85%;
-  padding: 12px 14px;
-  border-radius: 14px;
-  font-size: 13px;
+  max-width: 80%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 .dinero-chat-bubble-user {
-  align-self: flex-end;
   background: var(--accent-gradient, linear-gradient(135deg, #10b981 0%, #059669 100%));
   color: #ffffff;
-  border-bottom-right-radius: 2px;
+  border-top-right-radius: 2px;
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
 }
 
 .dinero-chat-bubble-assistant {
-  align-self: flex-start;
   background: var(--bg-card, #161c28);
   border: 1px solid var(--border-glow, rgba(255, 255, 255, 0.08));
   color: var(--text-primary, #ffffff);
-  border-bottom-left-radius: 2px;
+  border-top-left-radius: 2px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
