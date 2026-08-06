@@ -4,9 +4,15 @@ runConfig:
   concurrency: 80
 
 env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyCXO8nvgdT-URZPikEpSeAw_wGJyw3OC9Y
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: dinero-3e826.firebaseapp.com
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: dinero-3e826
-  - variable: FBASE_CLIENT_EMAIL
-    secret: FIREBASE_CLIENT_EMAIL
-  - variable: FBASE_PRIVATE_KEY
-    secret: FIREBASE_PRIVATE_KEY
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: dinero-3e826.firebasestorage.app
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "296300418387"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:296300418387:web:b46b5f188953a8392b3da6
