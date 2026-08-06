@@ -57,12 +57,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Safety Guard: Truncate context to last 20 turns
+    // Truncate context to last 20 turns
     const recentMessages = messages.slice(-20);
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-    // Format conversation history for Gemini API
     const contents = recentMessages.map((m: any) => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }],
@@ -71,11 +69,9 @@ export async function POST(request: Request) {
     const systemInstruction = {
       parts: [
         {
-          text: `You are Dinero Assistant, a helpful and friendly personal finance assistant in Dinero.
-You have read-only access to the user's financial accounts and transaction records via tool function calls.
-Always use tool function calls when asked questions about spending, balances, transactions, or categories.
-Format financial amounts nicely with dollar signs and commas. Use markdown tables for list breakdowns.
-Always remind users that AI suggestions are for informational purposes only.`,
+          text: `You are Dinero Assistant, a helpful personal finance assistant in Dinero.
+You have read-only access to user financial data via tool function calls.
+Format financial amounts nicely with dollar signs and commas. Use markdown tables for breakdowns.`,
         },
       ],
     };
@@ -86,6 +82,8 @@ Always remind users that AI suggestions are for informational purposes only.`,
       tools: [{ functionDeclarations: CHATBOT_TOOLS_SCHEMA }],
     };
 
+    let responseContent = '';
+
     const res = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,7 +92,7 @@ Always remind users that AI suggestions are for informational purposes only.`,
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('Gemini API Error Response:', errText);
+      console.error('Gemini API Error Response:', res.status, errText);
       return NextResponse.json(
         { error: `Gemini API call failed with status ${res.status}: ${errText}` },
         { status: res.status }
@@ -102,28 +100,19 @@ Always remind users that AI suggestions are for informational purposes only.`,
     }
 
     const geminiData = await res.json();
-    let responseContent = '';
     const candidatePart = geminiData.candidates?.[0]?.content?.parts?.[0];
 
     if (candidatePart?.functionCall) {
       const call = candidatePart.functionCall;
       const toolResult = await executeTool(call.name, call.args || {});
 
-      // Follow up turn with tool execution output
       const followUpPayload = {
         contents: [
           ...contents,
           geminiData.candidates[0].content,
           {
-            role: 'user',
-            parts: [
-              {
-                functionResponse: {
-                  name: call.name,
-                  response: { content: toolResult },
-                },
-              },
-            ],
+            role: 'function',
+            parts: [{ functionResponse: { name: call.name, response: { content: toolResult } } }],
           },
         ],
         systemInstruction,
@@ -152,12 +141,12 @@ Always remind users that AI suggestions are for informational purposes only.`,
 
     if (!responseContent) {
       return NextResponse.json(
-        { error: 'Gemini model did not return any content or tool response.' },
+        { error: 'No response content returned from model function execution.' },
         { status: 500 }
       );
     }
 
-    // SSE Stream delivery
+    // Real SSE Stream delivery
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -187,6 +176,7 @@ Always remind users that AI suggestions are for informational purposes only.`,
     });
 
     return new Response(stream, {
+      status: 200,
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
