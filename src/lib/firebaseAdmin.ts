@@ -20,18 +20,7 @@ try {
         adminAny.initializeApp({ projectId });
       }
     } else {
-      try {
-        adminAny.initializeApp({
-          projectId,
-          credential: adminAny.credential.applicationDefault(),
-        });
-      } catch {
-        try {
-          adminAny.initializeApp();
-        } catch {
-          adminAny.initializeApp({ projectId });
-        }
-      }
+      adminAny.initializeApp({ projectId });
     }
   }
 
