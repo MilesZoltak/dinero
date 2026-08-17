@@ -1,8 +1,8 @@
+import * as admin from 'firebase-admin';
+
 let db: any = null;
-let admin: any = null;
 
 try {
-  admin = require('firebase-admin');
   const adminAny = admin as any;
 
   if (!adminAny.apps || !adminAny.apps.length) {
@@ -35,4 +35,3 @@ try {
 
 export { db };
 export default admin;
-
