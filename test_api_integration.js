@@ -9,7 +9,7 @@ async function testApiChatIntegration() {
 
   const options = {
     hostname: 'localhost',
-    port: 3001,
+    port: parseInt(process.env.TEST_PORT || process.env.PORT || '3000', 10),
     path: '/api/chat',
     method: 'POST',
     headers: {
