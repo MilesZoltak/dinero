@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { dbAdapter, Account } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // GET all accounts
 export async function GET() {
   try {
