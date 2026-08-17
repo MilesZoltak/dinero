@@ -103,7 +103,8 @@ export const dbAdapter = {
         const snapshot = await firestoreDb!.collection('accounts').get();
         return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Account));
       } catch (error: any) {
-        console.error('Firestore failed to get accounts, falling back to local database:', error?.message || error);
+        console.error('Firestore failed to get accounts:', error?.message || error);
+        throw error;
       }
     }
     return readLocalDb().accounts;
@@ -153,8 +154,9 @@ export const dbAdapter = {
       try {
         const snapshot = await firestoreDb!.collection('transactions').orderBy('date', 'desc').get();
         return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Transaction));
-      } catch (error) {
-        console.error('Firestore failed to get transactions, falling back to local database:', error);
+      } catch (error: any) {
+        console.error('Firestore failed to get transactions:', error?.message || error);
+        throw error;
       }
     }
     const txs = readLocalDb().transactions;
