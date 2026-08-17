@@ -1,37 +1,35 @@
-import * as admin from 'firebase-admin';
+import { Firestore } from '@google-cloud/firestore';
 
-let db: any = null;
+let db: Firestore | null = null;
 
 try {
-  const adminAny = admin as any;
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'dinero-3e826';
+  const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 || process.env.FIREBASE_SERVICE_ACCOUNT;
 
-  if (!adminAny.apps || !adminAny.apps.length) {
-    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'dinero-3e826';
-    const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_DINERO_3E826 || process.env.FIREBASE_SERVICE_ACCOUNT;
-    
-    if (saEnv) {
-      try {
-        const serviceAccount = typeof saEnv === 'string' && saEnv.trim().startsWith('{') ? JSON.parse(saEnv) : saEnv;
-        adminAny.initializeApp({
-          credential: adminAny.credential.cert(serviceAccount),
-          projectId,
-        });
-      } catch {
-        adminAny.initializeApp({ projectId });
-      }
-    } else {
-      adminAny.initializeApp({ projectId });
+  if (saEnv) {
+    try {
+      const credentials = typeof saEnv === 'string' && saEnv.trim().startsWith('{') ? JSON.parse(saEnv) : saEnv;
+      db = new Firestore({
+        projectId,
+        credentials,
+        ignoreUndefinedProperties: true,
+      });
+    } catch {
+      db = new Firestore({
+        projectId,
+        ignoreUndefinedProperties: true,
+      });
     }
+  } else {
+    db = new Firestore({
+      projectId,
+      ignoreUndefinedProperties: true,
+    });
   }
-
-  db = adminAny.firestore();
-  try {
-    db.settings({ ignoreUndefinedProperties: true });
-  } catch (_) {}
-  console.log('Firebase Admin SDK initialized successfully.');
+  console.log('Firestore initialized successfully.');
 } catch (error) {
-  console.error('Failed to initialize Firebase Admin SDK:', error);
+  console.error('Failed to initialize Firestore:', error);
 }
 
 export { db };
-export default admin;
+export default db;
