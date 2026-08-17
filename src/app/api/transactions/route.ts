@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { dbAdapter, Transaction } from '@/lib/db';
 import { categorizeTransaction, seedDefaultRules, categorizeSubcategory } from '@/lib/categorizer';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // GET all transactions
 export async function GET() {
   try {

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { dbAdapter, CategoryRule } from '@/lib/db';
 import { seedDefaultRules } from '@/lib/categorizer';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // GET all rules
 export async function GET() {
   try {

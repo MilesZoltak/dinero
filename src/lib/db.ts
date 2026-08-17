@@ -102,8 +102,8 @@ export const dbAdapter = {
       try {
         const snapshot = await firestoreDb!.collection('accounts').get();
         return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Account));
-      } catch (error) {
-        console.error('Firestore failed to get accounts, falling back to local database:', error);
+      } catch (error: any) {
+        console.error('Firestore failed to get accounts, falling back to local database:', error?.message || error);
       }
     }
     return readLocalDb().accounts;

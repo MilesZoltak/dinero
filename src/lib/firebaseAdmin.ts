@@ -26,15 +26,22 @@ try {
           credential: adminAny.credential.applicationDefault(),
         });
       } catch {
-        adminAny.initializeApp({ projectId });
+        try {
+          adminAny.initializeApp();
+        } catch {
+          adminAny.initializeApp({ projectId });
+        }
       }
     }
   }
 
   db = adminAny.firestore();
-  console.log('Firebase Admin SDK initialized successfully using Managed Identity / ADC.');
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+  } catch (_) {}
+  console.log('Firebase Admin SDK initialized successfully.');
 } catch (error) {
-  console.error('Failed to initialize Firebase Admin SDK via Managed Identity:', error);
+  console.error('Failed to initialize Firebase Admin SDK:', error);
 }
 
 export { db };
