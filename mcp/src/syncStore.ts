@@ -2,6 +2,8 @@ import { Firestore } from "@google-cloud/firestore";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import type { ItemRecord, PlaidLike, SyncStore } from "./sync.ts";
 import type { LinkPlaidLike, LinkStore } from "./link.ts";
+import type { CategoryRule } from "./categorize.ts";
+import type { CategoryStore, CategorizeRow } from "./recategorize.ts";
 
 const BATCH = 400; // Firestore allows 500 writes per batch
 
@@ -47,6 +49,9 @@ export function createFirestoreSyncStore(projectId?: string): SyncStore {
         await batch.commit();
       }
     },
+    async getCategoryRules() {
+      return readRules(db);
+    },
     async existingCategorizedIds(ids) {
       const found = new Set<string>();
       for (const part of chunks(ids, 300)) {
@@ -64,6 +69,53 @@ export function createFirestoreSyncStore(projectId?: string): SyncStore {
 }
 
 /** Returns null when Plaid credentials are not configured. Never falls back to mock data. */
+async function readRules(db: Firestore): Promise<CategoryRule[]> {
+  const snap = await db.collection("categoryRules").get();
+  return snap.docs.flatMap((d) => {
+    const x = d.data();
+    if (typeof x.pattern !== "string" || typeof x.category !== "string") return [];
+    return [{ id: d.id, pattern: x.pattern, category: x.category, subcategory: typeof x.subcategory === "string" ? x.subcategory : null }];
+  });
+}
+
+export function createFirestoreCategoryStore(projectId?: string): CategoryStore {
+  const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
+  return {
+    getRules: () => readRules(db),
+    async addRules(rules) {
+      for (const part of chunks(rules)) {
+        const batch = db.batch();
+        for (const r of part) batch.set(db.collection("categoryRules").doc(r.id), { pattern: r.pattern, category: r.category });
+        await batch.commit();
+      }
+    },
+    async getRows() {
+      const snap = await db.collection("transactions").select("name", "category", "subcategory", "plaidCategory", "categorySource").get();
+      return snap.docs.map((d): CategorizeRow => {
+        const x = d.data();
+        const s = (v: unknown) => (typeof v === "string" && v ? v : null);
+        return {
+          id: d.id,
+          name: typeof x.name === "string" ? x.name : "",
+          category: typeof x.category === "string" ? x.category : "",
+          subcategory: s(x.subcategory),
+          plaidCategory: s(x.plaidCategory),
+          categorySource: s(x.categorySource),
+        };
+      });
+    },
+    async updateCategories(updates) {
+      for (const part of chunks(updates)) {
+        const batch = db.batch();
+        for (const u of part) {
+          batch.set(db.collection("transactions").doc(u.id), { category: u.category, subcategory: u.subcategory, categorySource: u.categorySource }, { merge: true });
+        }
+        await batch.commit();
+      }
+    },
+  };
+}
+
 export function createFirestoreLinkStore(projectId?: string): LinkStore {
   const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
   return {

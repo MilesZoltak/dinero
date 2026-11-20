@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { MAX_ROWS, monthlyTrend, queryTransactions, spendByCategory, summarizeAccounts } from "./analysis.ts";
+import { isTransferCategory } from "./categorize.ts";
 import type { Store } from "./store.ts";
 
 const date = z
@@ -11,6 +12,14 @@ const date = z
 const range = {
   startDate: date.optional().describe("Start date, inclusive (YYYY-MM-DD)."),
   endDate: date.optional().describe("End date, inclusive (YYYY-MM-DD)."),
+};
+
+const withTransfers = {
+  ...range,
+  includeTransfers: z
+    .boolean()
+    .optional()
+    .describe("Include transfers between your own accounts, such as credit card payments and savings moves. Default false."),
 };
 
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -56,20 +65,27 @@ export function registerTools(server: McpServer, store: Store) {
     "spend_by_category",
     {
       description:
-        "Total expenses per category over a date range, largest first. Counts every transaction in the range, not a sample.",
-      inputSchema: range,
+        "Total expenses per category over a date range, largest first. Counts every transaction in the range, not a sample. Transfers between your own accounts are left out unless includeTransfers is true.",
+      inputSchema: withTransfers,
       annotations: readOnly,
     },
-    async (r) => json(spendByCategory(await store.getTransactions(r))),
+    async ({ includeTransfers, ...r }) => {
+      const txs = await store.getTransactions(r);
+      return json(spendByCategory(includeTransfers ? txs : txs.filter((t) => !isTransferCategory(t.category))));
+    },
   );
 
   server.registerTool(
     "monthly_trend",
     {
-      description: "Spend, income and net per calendar month over a date range, oldest first.",
-      inputSchema: range,
+      description:
+        "Spend, income and net per calendar month over a date range, oldest first. Transfers between your own accounts are left out unless includeTransfers is true.",
+      inputSchema: withTransfers,
       annotations: readOnly,
     },
-    async (r) => json(monthlyTrend(await store.getTransactions(r))),
+    async ({ includeTransfers, ...r }) => {
+      const txs = await store.getTransactions(r);
+      return json(monthlyTrend(includeTransfers ? txs : txs.filter((t) => !isTransferCategory(t.category))));
+    },
   );
 }

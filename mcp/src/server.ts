@@ -5,7 +5,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
 import { verifyGoogleServiceToken } from "./oidc.ts";
-import { createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { recategorizeAll, type RecategorizeReport } from "./recategorize.ts";
+import { createFirestoreCategoryStore, createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
 import { finishLink, LinkError, startLink, type FinishResult, type StartResult } from "./link.ts";
 import { syncAll, type SyncReport } from "./sync.ts";
 
@@ -31,6 +32,8 @@ export interface LinkRunner {
 export interface AppOptions {
   /** Lets a trusted machine caller (Cloud Scheduler) run /sync, and only /sync, without the bearer token. */
   verifySchedulerToken?: (token: string) => Promise<boolean>;
+  /** Recomputes categories. Present when Firestore is available. */
+  recategorize?: (opts: { dryRun: boolean }) => Promise<RecategorizeReport>;
 }
 
 export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner, opts: AppOptions = {}) {
@@ -126,6 +129,28 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     }
   });
 
+  // Recompute categories from the rules. A dry run unless the body says {"apply": true}.
+  let categorizing = false;
+  app.post("/categorize", authenticate, async (req, res) => {
+    if (!opts.recategorize) {
+      res.status(503).json({ error: "Categorizing is not available." });
+      return;
+    }
+    if (categorizing) {
+      res.status(409).json({ error: "A categorize run is already in progress." });
+      return;
+    }
+    categorizing = true;
+    try {
+      res.json(await opts.recategorize({ dryRun: req.body?.apply !== true }));
+    } catch (err) {
+      console.error("categorize failed", err);
+      res.status(500).json({ error: "Categorize failed." });
+    } finally {
+      categorizing = false;
+    }
+  });
+
   // Bank linking via Plaid Hosted Link (see link.ts). Not MCP tools.
   const linkRoute = (fn: (body: Record<string, unknown>) => Promise<unknown>) => async (req: Request, res: Response) => {
     if (!link) {
@@ -192,5 +217,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const audience = process.env.SYNC_AUDIENCE;
   const verifySchedulerToken =
     callerEmail && audience ? (t: string) => verifyGoogleServiceToken(t, { audience, email: callerEmail }) : undefined;
-  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const categoryStore = createFirestoreCategoryStore(projectId);
+  const recategorize = (o: { dryRun: boolean }) => recategorizeAll(categoryStore, o);
+  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken, recategorize }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

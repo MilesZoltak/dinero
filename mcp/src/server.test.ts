@@ -10,6 +10,7 @@ const accounts = [
   toAccount("a2", { name: "Card", type: "credit", subtype: "credit card", balance: 200, institutionName: "Bank" }),
 ];
 const txs = [
+  toTransaction("t5", { accountId: "a1", amount: 500, date: "2026-11-03", name: "Card payment", category: "TRANSFER_OUT" }),
   toTransaction("t1", { accountId: "a1", amount: 50, date: "2026-10-03", name: "Trader Joes", category: "Groceries" }),
   toTransaction("t2", { accountId: "a1", amount: 25.25, date: "2026-10-15", name: "Uber", category: "Travel" }),
   toTransaction("t3", { accountId: "a1", amount: -3000, date: "2026-11-01", name: "Payroll", category: "Income" }),
@@ -90,6 +91,8 @@ test("spend_by_category counts all expenses in range and skips income", async ()
     { category: "Groceries", totalAmount: 60, transactionCount: 2 },
     { category: "Travel", totalAmount: 25.25, transactionCount: 1 },
   ]);
+  const withTransfers = await tool("spend_by_category", { includeTransfers: true });
+  assert.equal(withTransfers[0].category, "TRANSFER_OUT");
   const oct = await tool("spend_by_category", { startDate: "2026-10-01", endDate: "2026-10-31" });
   assert.equal(oct[0].totalAmount, 50);
 });
@@ -107,6 +110,8 @@ test("monthly_trend groups by month", async () => {
     { month: "2026-10", spend: 75.25, income: 0, net: -75.25 },
     { month: "2026-11", spend: 10, income: 3000, net: 2990 },
   ]);
+  const incl = await tool("monthly_trend", { includeTransfers: true });
+  assert.equal(incl.find((m: { month: string }) => m.month === "2026-11").spend, 510);
 });
 
 test("bad date input is rejected", async () => {
@@ -219,4 +224,25 @@ test("the scheduler's identity can run /sync but nothing else", async () => {
   } finally {
     s.close();
   }
+});
+
+
+test("/categorize is a dry run unless apply is true, and needs the bearer token", async () => {
+  const calls: boolean[] = [];
+  const report = { dryRun: true, total: 0, skippedManual: 0, changed: 0, seededRules: 0, bySource: {}, categoriesAfter: [], sample: [] };
+  const s = createApp(TOKEN, fakeStore, undefined, undefined, {
+    recategorize: async ({ dryRun }) => (calls.push(dryRun), { ...report, dryRun }),
+  }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    assert.equal((await postJson(url, "/categorize", {})).status, 401);
+    assert.equal((await postJson(url, "/categorize", {}, TOKEN)).status, 200);
+    assert.equal((await postJson(url, "/categorize", { apply: "yes" }, TOKEN)).status, 200);
+    assert.equal((await postJson(url, "/categorize", { apply: true }, TOKEN)).status, 200);
+    assert.deepEqual(calls, [true, true, false]);
+  } finally {
+    s.close();
+  }
+  await withApp(undefined, async (url) => assert.equal((await postJson(url, "/categorize", {}, TOKEN)).status, 503));
 });

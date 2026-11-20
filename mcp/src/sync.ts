@@ -1,3 +1,5 @@
+import { categorize, type CategoryRule } from "./categorize.ts";
+
 /**
  * Plaid -> Firestore sync. Real Plaid only: there is no mock path. Items whose
  * access token starts with "mock_" (left over from the old app) are skipped and
@@ -70,8 +72,12 @@ export interface TxWrite {
   name: string;
   isPending: boolean;
   isManual: false;
-  /** Only set for new transactions, so user recategorization survives later syncs. */
+  /** Plaid's own primary category, kept so categories can be recomputed later. */
+  plaidCategory: string | null;
+  /** Only set for new transactions, so recategorization survives later syncs. */
   category?: string;
+  subcategory?: string | null;
+  categorySource?: "rule" | "plaid" | "existing" | "default";
 }
 
 export interface SyncStore {
@@ -80,6 +86,7 @@ export interface SyncStore {
   upsertTransactions(txs: TxWrite[]): Promise<void>;
   deleteTransactions(ids: string[]): Promise<void>;
   saveCursor(itemId: string, cursor: string): Promise<void>;
+  getCategoryRules(): Promise<CategoryRule[]>;
   /** Of these ids, the ones that already exist with a category. Their category must not be overwritten. */
   existingCategorizedIds(ids: string[]): Promise<Set<string>>;
 }
@@ -115,7 +122,7 @@ export function errorCode(err: unknown): string {
 
 const LOGIN_CODES = new Set(["ITEM_LOGIN_REQUIRED", "PENDING_EXPIRATION"]);
 
-function toTx(t: PlaidTxLike, withCategory: boolean): TxWrite {
+function toTx(t: PlaidTxLike, withCategory: boolean, rules: CategoryRule[]): TxWrite {
   const w: TxWrite = {
     id: t.transaction_id,
     accountId: t.account_id,
@@ -124,14 +131,18 @@ function toTx(t: PlaidTxLike, withCategory: boolean): TxWrite {
     name: t.merchant_name || t.name,
     isPending: t.pending === true,
     isManual: false,
+    plaidCategory: t.personal_finance_category?.primary || t.category?.[0] || null,
   };
   if (withCategory) {
-    w.category = t.personal_finance_category?.primary || t.category?.[0] || "Uncategorized";
+    const c = categorize({ name: w.name, plaidCategory: w.plaidCategory }, rules);
+    w.category = c.category;
+    w.subcategory = c.subcategory;
+    w.categorySource = c.source;
   }
   return w;
 }
 
-async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, now: string): Promise<ItemReport> {
+async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, now: string, rules: CategoryRule[]): Promise<ItemReport> {
   const report: ItemReport = {
     itemId: item.itemId,
     institution: item.institutionName,
@@ -199,8 +210,8 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
       // history, including rows the app has already categorized).
       const keep = await store.existingCategorizedIds(added.map((t) => t.transaction_id));
       await store.upsertTransactions([
-        ...added.map((t) => toTx(t, !keep.has(t.transaction_id))),
-        ...modified.map((t) => toTx(t, false)),
+        ...added.map((t) => toTx(t, !keep.has(t.transaction_id), rules)),
+        ...modified.map((t) => toTx(t, false, rules)),
       ]);
       if (removed.length) await store.deleteTransactions(removed);
       if (cursor) await store.saveCursor(item.itemId, cursor);
@@ -225,7 +236,8 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
 /** Syncs every item. One item failing never stops the others. */
 export async function syncAll(plaid: PlaidLike, store: SyncStore, now = new Date().toISOString()): Promise<SyncReport> {
   const items = await store.getPlaidItems();
+  const rules = await store.getCategoryRules();
   const reports: ItemReport[] = [];
-  for (const item of items) reports.push(await syncItem(plaid, store, item, now));
+  for (const item of items) reports.push(await syncItem(plaid, store, item, now, rules));
   return { ok: reports.every((r) => r.status === "ok" || r.status === "balances_only" || r.status === "skipped_mock"), items: reports };
 }

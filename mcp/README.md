@@ -132,3 +132,34 @@ Run it now to test: `gcloud scheduler jobs run dinero-sync --location us-central
 A bank that needs a fresh login does not make the job fail: the response is 207
 and the service logs a `sync: <bank> login_required` warning. The dashboard
 shows accounts that have not synced in over 7 days.
+
+## Categories
+
+Ported from the old app's categorizer (`mcp/src/categorize.ts`). A transaction's
+category comes from, in order:
+
+1. Your category rules (Firestore `categoryRules`): the **longest** matching
+   pattern wins. The old app took whichever rule Firestore listed first.
+2. Plaid's own category, shown under a readable name (`FOOD_AND_DRINK` becomes
+   `Food & Drink`). Plaid categories with no standard equivalent keep their own
+   name, such as Medical or Entertainment, instead of becoming "Other".
+3. The category it already had, then `Other`.
+
+New transactions are categorized as they sync, and Plaid's original category is
+kept in `plaidCategory`. `categorySource` records where a category came from:
+`rule`, `plaid`, `existing`, `default` or `manual`. Rows marked `manual` are never
+changed by a sweep, ready for a future write tool.
+
+To recompute every existing transaction:
+
+```bash
+# Preview: changes nothing and shows counts and a sample
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' https://<service-url>/categorize
+
+# Apply
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"apply":true}' https://<service-url>/categorize
+```
+
+Default rules are seeded only when there are no rules at all, so a rule you
+deleted stays deleted. `spend_by_category` and `monthly_trend` leave out the
+`Transfer` category unless `includeTransfers` is true.

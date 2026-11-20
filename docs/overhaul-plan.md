@@ -45,7 +45,8 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 - Built, untested against real Plaid: bank linking through Plaid Hosted Link (`POST /link/start`, `POST /link/finish`, see `mcp/README.md`). It replaces the planned static Link page. Covers new banks, expired logins (update mode) and adding transaction consent.
 - Built, pending deploy: a daily Cloud Scheduler job for `/sync`, authenticated with a Google-signed identity token for a dedicated service account (accepted for `/sync` only). Setup is in `mcp/README.md`.
 - Built: the Claude "Data" dashboard (private artifact, live queries against the connector). Not yet seen rendering.
-- Not built: the categorizer port and encrypting access tokens at rest.
+- Built, pending deploy: the categorizer port (`mcp/src/categorize.ts`, `POST /categorize`, dry run by default). New transactions are categorized during sync, `spend_by_category` and `monthly_trend` leave out transfers by default, and `categorySource: "manual"` rows are protected from sweeps, in preparation for a write tool. Merchant-name cleanup (`src/lib/merchant.ts`) is not ported.
+- Not built: a write tool for Claude to recategorize or add rules (wanted, later), and encrypting access tokens at rest.
 - The old `get_spending_by_category` in `src/lib/chatbot/tools.ts` was wrong: it asked for 1000 rows but `queryTransactionsTool` clamps to 50, so category totals covered only 50 transactions. The `mcp/` version aggregates every transaction in the range.
 
 ## Security problems in the current code (fix or retire during the rewrite)

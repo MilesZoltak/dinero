@@ -15,6 +15,7 @@ function memStore(items: ItemRecord[]) {
     async upsertTransactions(t: TxWrite[]) { t.forEach((x) => s.txs.set(x.id, { ...s.txs.get(x.id), ...x })); },
     async deleteTransactions(ids: string[]) { s.deleted.push(...ids); },
     async saveCursor(id: string, c: string) { s.cursors.set(id, c); },
+    async getCategoryRules() { return []; },
     async existingCategorizedIds(ids: string[]) { return new Set(ids.filter((i) => s.txs.get(i)?.category)); },
   };
   return s satisfies SyncStore & Record<string, unknown>;
@@ -69,7 +70,9 @@ test("modified transactions keep the user's category; new ones get Plaid's", asy
   const store = memStore([item("i1")]);
   store.txs.set("old", { id: "old", accountId: "a1", amount: 10, date: "2026-11-01", name: "x", isPending: false, isManual: false, category: "My Custom" });
   await syncAll(plaid, store);
-  assert.equal(store.txs.get("new")?.category, "FOOD_AND_DRINK");
+  assert.equal(store.txs.get("new")?.category, "Food & Drink");
+  assert.equal(store.txs.get("new")?.categorySource, "plaid");
+  assert.equal(store.txs.get("old")?.plaidCategory, "FOOD_AND_DRINK");
   assert.equal(store.txs.get("old")?.category, "My Custom");
   assert.equal(store.txs.get("old")?.amount, 12);
 });
@@ -143,7 +146,8 @@ test("replaying history (added) does not overwrite categories we already hold", 
   store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, category: "Food & Drink" });
   await syncAll(plaid, store);
   assert.equal(store.txs.get("have")?.category, "Food & Drink");
-  assert.equal(store.txs.get("fresh")?.category, "GENERAL");
+  assert.equal(store.txs.get("fresh")?.category, "General");
+  assert.equal(store.txs.get("have")?.plaidCategory, "GENERAL");
 });
 
 test("no transactions consent is reported as balances_only, with balances still saved", async () => {
