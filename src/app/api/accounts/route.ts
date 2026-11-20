@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { dbAdapter, Account } from '@/lib/db';
+import { requireUser } from '@/lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 // GET all accounts
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const accounts = await dbAdapter.getAccounts();
     return NextResponse.json({ accounts });
@@ -18,6 +21,8 @@ export async function GET() {
 
 // POST create manual account
 export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const { name, type, subtype, balance, institutionName } = await request.json();
 
@@ -47,6 +52,8 @@ export async function POST(request: Request) {
 
 // DELETE an account or unlink an institution
 export async function DELETE(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('accountId');

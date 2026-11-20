@@ -14,6 +14,7 @@ import {
 import { Chart as ChartJS, registerables } from 'chart.js';
 import { Doughnut, Line } from 'react-chartjs-2';
 import Link from 'next/link';
+import { authFetch } from '@/lib/authFetch';
 
 ChartJS.register(...registerables);
 
@@ -55,10 +56,10 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const accountsRes = await fetch('/api/accounts');
+      const accountsRes = await authFetch('/api/accounts');
       const accountsData = await accountsRes.json();
       
-      const transactionsRes = await fetch('/api/transactions');
+      const transactionsRes = await authFetch('/api/transactions');
       const transactionsData = await transactionsRes.json();
 
       setAccounts(accountsData.accounts || []);
@@ -85,7 +86,7 @@ export default function Dashboard() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const res = await fetch('/api/plaid/sync', { method: 'POST' });
+      const res = await authFetch('/api/plaid/sync', { method: 'POST' });
       const data = await res.json();
       if (data.error) {
         setSyncMessage(`Error: ${data.error}`);

@@ -18,6 +18,7 @@ import {
   TrendingDown,
   Bot
 } from 'lucide-react';
+import { authFetch } from '@/lib/authFetch';
 
 export default function DashboardLayout({
   children,
@@ -38,7 +39,7 @@ export default function DashboardLayout({
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user && !window.location.search.includes('bypassAuth=true')) {
+      if (!user) {
         router.push('/');
       } else {
         setAuthChecked(true);
@@ -52,7 +53,7 @@ export default function DashboardLayout({
   useEffect(() => {
     async function checkDb() {
       try {
-        const res = await fetch('/api/accounts');
+        const res = await authFetch('/api/accounts');
         setIsCloudMode(true);
       } catch {
         setIsCloudMode(false);

@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test:auth": "node --test src/lib/authCore.test.mjs",
     "test:accounts": "node test_accounts.js",
     "test:assistant": "node test_assistant_e2e.js",
     "test:api": "node test_api_integration.js"
@@ -15,6 +16,7 @@
     "chart.js": "^4.5.1",
     "firebase": "^12.17.0",
     "firebase-admin": "^13.2.0",
+    "jose": "^6.2.18",
     "lucide-react": "^1.28.0",
     "next": "16.2.12",
     "plaid": "^45.0.0",

@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { dbAdapter, Account, Transaction, PlaidItem } from '@/lib/db';
+import { requireUser } from '@/lib/serverAuth';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const plaidItems = await dbAdapter.getPlaidItems();
     const accounts = await dbAdapter.getAccounts();

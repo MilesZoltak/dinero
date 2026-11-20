@@ -24,6 +24,7 @@ import { Chart as ChartJS, registerables } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { STANDARD_CATEGORIES, CATEGORY_SUBCATEGORIES } from '@/lib/constants';
 import { cleanMerchantName } from '@/lib/merchant';
+import { authFetch } from '@/lib/authFetch';
 
 ChartJS.register(...registerables);
 
@@ -86,15 +87,15 @@ export default function SpendHubPage() {
 
   const loadData = async () => {
     try {
-      const txRes = await fetch('/api/transactions');
+      const txRes = await authFetch('/api/transactions');
       const txData = await txRes.json();
       setTransactions(txData.transactions || []);
 
-      const accountsRes = await fetch('/api/accounts');
+      const accountsRes = await authFetch('/api/accounts');
       const accountsData = await accountsRes.json();
       setAccounts(accountsData.accounts || []);
 
-      const ruleRes = await fetch('/api/categories/rules');
+      const ruleRes = await authFetch('/api/categories/rules');
       const ruleData = await ruleRes.json();
       setRules(ruleData.rules || []);
     } catch (err) {
@@ -174,7 +175,7 @@ export default function SpendHubPage() {
 
     setIsSubmittingRule(true);
     try {
-      const res = await fetch('/api/categories/rules', {
+      const res = await authFetch('/api/categories/rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pattern: rulePattern, category: ruleCategory })
@@ -207,7 +208,7 @@ export default function SpendHubPage() {
           if (tx && selectedCategory) {
             const vendor = cleanMerchantName(tx.name);
             vendorRulePromises.push(
-              fetch('/api/categories/rules', {
+              authFetch('/api/categories/rules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ pattern: vendor, category: selectedCategory, subcategory: update.subcategory })
@@ -227,7 +228,7 @@ export default function SpendHubPage() {
         ...(pendingUpdates[id] ? { category: pendingUpdates[id] } : {}),
         ...(pendingSubcategoryUpdates[id] ? { subcategory: pendingSubcategoryUpdates[id].subcategory } : {})
       }));
-      const res = await fetch('/api/transactions', {
+      const res = await authFetch('/api/transactions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates: updatesList })
@@ -236,7 +237,7 @@ export default function SpendHubPage() {
       if (data.success) {
         // Step 3: If vendor rules were created, sweep retroactively
         if (vendorRulePromises.length > 0) {
-          await fetch('/api/categories/retroactive', { method: 'POST' });
+          await authFetch('/api/categories/retroactive', { method: 'POST' });
           showNotification('success', `Updated ${data.count} transaction(s) and applied vendor rule to all matching transactions.`);
         } else {
           showNotification('success', `Successfully updated ${data.count} transaction(s).`);
@@ -261,7 +262,7 @@ export default function SpendHubPage() {
     if (!confirm(`Delete matching rule for keyword "${pattern}"?`)) return;
 
     try {
-      const res = await fetch(`/api/categories/rules?ruleId=${ruleId}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/categories/rules?ruleId=${ruleId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         showNotification('success', 'Matching rule deleted successfully.');
@@ -279,7 +280,7 @@ export default function SpendHubPage() {
   const handleRunRetroactive = async () => {
     setRunningRetro(true);
     try {
-      const res = await fetch('/api/categories/retroactive', { method: 'POST' });
+      const res = await authFetch('/api/categories/retroactive', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showNotification('success', data.message);

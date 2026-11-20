@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { dbAdapter, CategoryRule } from '@/lib/db';
 import { seedDefaultRules } from '@/lib/categorizer';
+import { requireUser } from '@/lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 // GET all rules
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     await seedDefaultRules();
     const rules = await dbAdapter.getCategoryRules();
@@ -20,6 +23,8 @@ export async function GET() {
 
 // POST create a rule
 export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const { pattern, category, subcategory } = await request.json();
 
@@ -45,6 +50,8 @@ export async function POST(request: Request) {
 
 // DELETE a rule
 export async function DELETE(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const ruleId = searchParams.get('ruleId');

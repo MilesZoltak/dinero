@@ -11,6 +11,7 @@ import {
   CheckCircle,
   FileSpreadsheet
 } from 'lucide-react';
+import { authFetch } from '@/lib/authFetch';
 
 interface Account {
   id: string;
@@ -62,11 +63,11 @@ export default function TransactionsPage() {
 
   const loadData = async () => {
     try {
-      const accountsRes = await fetch('/api/accounts');
+      const accountsRes = await authFetch('/api/accounts');
       const accountsData = await accountsRes.json();
       setAccounts(accountsData.accounts || []);
 
-      const transactionsRes = await fetch('/api/transactions');
+      const transactionsRes = await authFetch('/api/transactions');
       const transactionsData = await transactionsRes.json();
       setTransactions(transactionsData.transactions || []);
     } catch (err) {
@@ -98,7 +99,7 @@ export default function TransactionsPage() {
     const adjustedAmount = txType === 'expense' ? parseFloat(txAmount) : -parseFloat(txAmount);
 
     try {
-      const res = await fetch('/api/transactions', {
+      const res = await authFetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +132,7 @@ export default function TransactionsPage() {
   const handleDeleteTransaction = async (txId: string) => {
     if (!confirm('Are you sure you want to delete this transaction record?')) return;
     try {
-      const res = await fetch(`/api/transactions?txId=${txId}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/transactions?txId=${txId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         showNotification('success', data.message);
@@ -220,7 +221,7 @@ export default function TransactionsPage() {
         accountId: csvAccountId,
       }));
 
-      const res = await fetch('/api/transactions', {
+      const res = await authFetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transactions: txsWithAccount }),

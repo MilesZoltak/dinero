@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { dbAdapter, Transaction } from '@/lib/db';
 import { categorizeTransaction, seedDefaultRules, categorizeSubcategory } from '@/lib/categorizer';
+import { requireUser } from '@/lib/serverAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 // GET all transactions
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const transactions = await dbAdapter.getTransactions();
     return NextResponse.json({ transactions });
@@ -19,6 +22,8 @@ export async function GET() {
 
 // POST one or more transactions (for manual entries or CSV batch uploads)
 export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
 
@@ -89,6 +94,8 @@ export async function POST(request: Request) {
 
 // PATCH to update the category of a batch of existing transactions
 export async function PATCH(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const { updates } = body; // Array<{ id: string, category: string }>
@@ -130,6 +137,8 @@ export async function PATCH(request: Request) {
 
 // DELETE a manual transaction
 export async function DELETE(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const txId = searchParams.get('txId');

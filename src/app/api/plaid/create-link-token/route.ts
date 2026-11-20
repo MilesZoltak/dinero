@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getPlaidClient, isPlaidEnabled } from '@/lib/plaidClient';
 import { Products, CountryCode } from 'plaid';
+import { requireUser } from '@/lib/serverAuth';
 
 export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     if (!isPlaidEnabled()) {
       // Return mock link token for UI testing when Plaid is not configured

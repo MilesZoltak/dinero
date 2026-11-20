@@ -44,6 +44,12 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 
 ## Security problems in the current code (fix or retire during the rewrite)
 
+**Fixed in the lockdown change, pending merge:** every `/api/*` handler now calls `requireUser` (`src/lib/serverAuth.ts`), which verifies the Firebase ID token against Google's keys, requires a verified email, and checks it against an allowlist. `?bypassAuth=true` is removed. The dashboard sends the token through `authFetch`. The checks live in the handlers, not `proxy.ts`, so they do not depend on whether Firebase's Next adapter runs a proxy file.
+
+**One manual step before merging:** the allowlist is a Firestore document, kept out of the public repo. Create `config/auth` with a field `allowedEmails` (array of strings) in the `dinero-3e826` Firestore, or nobody can use the dashboard. The check fails closed, so a missing document means 403 for everyone. The list is cached for 60 seconds.
+
+The original findings, for the record:
+
 - **No server-side auth on any API route.** Login is client-side only (`onAuthStateChanged` in `src/app/dashboard/layout.tsx`). `/api/accounts`, `/api/transactions`, `/api/plaid/*` and the rest are open to anyone who has the URL, including Plaid sync triggers.
 - **`?bypassAuth=true`** disables the dashboard guard.
 - **Plaid access tokens** live in the same unprotected data path (Firestore `plaidItems`).

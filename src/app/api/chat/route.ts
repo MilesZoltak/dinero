@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/serverAuth';
 import {
   getAccountsSummaryTool,
   queryTransactionsTool,
@@ -40,6 +41,8 @@ async function executeTool(name: string, args: any) {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const { messages } = body;

@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Key
 } from 'lucide-react';
+import { authFetch } from '@/lib/authFetch';
 
 interface Account {
   id: string;
@@ -87,7 +88,7 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch('/api/accounts');
+      const res = await authFetch('/api/accounts');
       const data = await res.json();
       setAccounts(data.accounts || []);
     } catch (err) {
@@ -112,7 +113,7 @@ export default function AccountsPage() {
     setLinkTokenLoading(true);
     setPlaidToken(null);
     try {
-      const res = await fetch('/api/plaid/create-link-token', {
+      const res = await authFetch('/api/plaid/create-link-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isInvestment }),
@@ -143,7 +144,7 @@ export default function AccountsPage() {
   const handlePlaidSuccess = async (public_token: string, metadata: any) => {
     try {
       setLoading(true);
-      const response = await fetch('/api/plaid/exchange-token', {
+      const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +175,7 @@ export default function AccountsPage() {
     setPlaidToken(null);
     setLoading(true);
     try {
-      const response = await fetch('/api/plaid/exchange-token', {
+      const response = await authFetch('/api/plaid/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -208,7 +209,7 @@ export default function AccountsPage() {
 
     setIsSubmittingSimpleFin(true);
     try {
-      const res = await fetch('/api/simplefin/link', {
+      const res = await authFetch('/api/simplefin/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ setupToken: simpleFinToken }),
@@ -240,7 +241,7 @@ export default function AccountsPage() {
 
     setIsSubmittingManual(true);
     try {
-      const res = await fetch('/api/accounts', {
+      const res = await authFetch('/api/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,7 +277,7 @@ export default function AccountsPage() {
     }
     
     try {
-      const res = await fetch(`/api/accounts?accountId=${accountId}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/accounts?accountId=${accountId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         showNotification('success', data.message);

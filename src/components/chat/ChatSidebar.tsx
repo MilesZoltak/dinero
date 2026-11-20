@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, X, AlertTriangle, Sparkles, User, RefreshCw, Move } from 'lucide-react';
+import { authFetch } from '@/lib/authFetch';
 
 export interface ChatMessage {
   id: string;
@@ -127,7 +128,7 @@ export default function ChatSidebar() {
     setMessages((prev) => [...prev, initialAssistantMsg]);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await authFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages }),

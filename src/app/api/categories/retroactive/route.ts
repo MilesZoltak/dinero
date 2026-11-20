@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { retroactivelyCategorizeTransactions } from '@/lib/categorizer';
+import { requireUser } from '@/lib/serverAuth';
 
 // POST to trigger retroactive classification sweep over database
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = await requireUser(request);
+  if (denied) return denied;
   try {
     const updatedCount = await retroactivelyCategorizeTransactions();
     return NextResponse.json({ 
