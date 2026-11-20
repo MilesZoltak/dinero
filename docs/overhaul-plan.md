@@ -16,12 +16,14 @@ The existing Next.js web app is considered janky and was largely generated with 
 - **Minimize the secrets and plumbing he has to manage.** Prefer managed OAuth and built-in integrations over pasted tokens.
 - **Keep third-party services down: one vendor.** That vendor is Google Cloud. Firebase and Google Cloud stay for his other apps (the dbt app, Foamies).
 - **Minimal code in GitHub.** He is fine moving into Claude Code for the implementation.
+- **Keep Firestore.** Decided on 2026-11-20 after weighing Cloud SQL: the small monthly Cloud SQL cost is not worth it. Aggregations run in the MCP service over date-bounded Firestore reads. Revisit only if data volume makes that slow.
+- **Same repo.** The rewrite lives in this repo, under `mcp/`. Changes go through PRs because `main` auto-deploys.
 
 ## Proposed, not yet confirmed by Miles
 
 These came out of a voice conversation; he agreed to "one vendor" but did not sign off on each piece. Confirm before building something expensive on top of them.
 
-- **Cloud SQL for Postgres** instead of Firestore. Finance data is aggregation-heavy (spend by category, trends, net worth over time, recurring charges). Firestore is poor at that, which is why `src/lib/chatbot/tools.ts` loads every transaction and filters in memory. Cloud SQL has no free tier, so expect a small monthly cost. Firestore remains the fallback if cost matters more than query ergonomics.
+- ~~Cloud SQL for Postgres~~ Rejected, see Decided. Firestore stays.
 - **Cloud Run** for a single small TypeScript service that does Plaid sync and webhooks, serves the Plaid Link page, and hosts the MCP endpoint.
 - **Secret Manager** for the Plaid client id and secret. Encrypt Plaid access tokens at rest. Tokens must never be readable through any MCP tool.
 - **Read-only MCP server** with purpose-built, parameterized tools returning plain rows, for example `get_accounts_summary`, `query_transactions`, `spend_by_category`, `monthly_trend`, `net_worth_history`, `recurring_charges`. No raw SQL tool.
@@ -29,9 +31,16 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 
 ## Unverified, prove these first
 
-1. **Connector auth.** Auth for the connector is meant to be Google sign-in over OAuth so there is no token to carry around. It has NOT been verified that Claude's custom connectors accept that flow cleanly. **First task: stand up a bare-bones MCP function with a login test and prove a Claude chat can call it.** Do not build the schema or port Plaid until this works. If it fails, fall back to a single long random bearer token stored in Secret Manager.
+1. ~~**Connector auth.**~~ **Done (2026-11-20), with the fallback.** A Claude chat called `ping` on the Cloud Run service `dinero-mcp` using a single bearer token stored in Secret Manager (`dinero-mcp-token`). In the custom connector dialog, choose "No sign-in" and add a request header `Authorization: Bearer <token>`. Google sign-in OAuth was not tried. Google's OAuth does not offer dynamic client registration, so it would probably need an authorization layer in front. For a single-user tool the bearer token is acceptable. Rotate it by adding a Secret Manager version and redeploying.
 2. Whether a Claude dashboard can call a custom connector as a live dataset in practice (the docs say it can call tools on the viewer's connectors; this is untested here).
 3. HIPAA and BAA coverage matters only for the dbt app, not Dinero. Google lists Firestore, Cloud Run and Cloud Storage as covered services, but that was stated from memory and should be checked against Google's current covered-services list before relying on it.
+
+## Status
+
+- Done: `mcp/` service with `ping`, `get_accounts_summary`, `query_transactions`, `spend_by_category` and `monthly_trend`, read-only over Firestore, with explicit field whitelists so Plaid tokens cannot appear in any response.
+- Not built: `net_worth_history` (Dinero stores no balance history, so it needs a snapshot job first) and `recurring_charges`.
+- Not built: Plaid sync, the Link page, and the dashboard.
+- The old `get_spending_by_category` in `src/lib/chatbot/tools.ts` was wrong: it asked for 1000 rows but `queryTransactionsTool` clamps to 50, so category totals covered only 50 transactions. The `mcp/` version aggregates every transaction in the range.
 
 ## Security problems in the current code (fix or retire during the rewrite)
 
