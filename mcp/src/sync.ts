@@ -80,9 +80,15 @@ export interface SyncStore {
   upsertTransactions(txs: TxWrite[]): Promise<void>;
   deleteTransactions(ids: string[]): Promise<void>;
   saveCursor(itemId: string, cursor: string): Promise<void>;
+  /** Of these ids, the ones that already exist with a category. Their category must not be overwritten. */
+  existingCategorizedIds(ids: string[]): Promise<Set<string>>;
 }
 
-export type ItemStatus = "ok" | "login_required" | "error" | "skipped_mock";
+/**
+ * balances_only: the bank is connected and balances were updated, but Plaid has
+ * no consent to read transactions (typical for items linked as Investments only).
+ */
+export type ItemStatus = "ok" | "balances_only" | "login_required" | "error" | "skipped_mock";
 
 export interface ItemReport {
   itemId: string;
@@ -189,7 +195,13 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
       }
       if (restart) continue;
 
-      await store.upsertTransactions([...added.map((t) => toTx(t, true)), ...modified.map((t) => toTx(t, false))]);
+      // A transaction we already hold keeps its category (the first run replays all
+      // history, including rows the app has already categorized).
+      const keep = await store.existingCategorizedIds(added.map((t) => t.transaction_id));
+      await store.upsertTransactions([
+        ...added.map((t) => toTx(t, !keep.has(t.transaction_id))),
+        ...modified.map((t) => toTx(t, false)),
+      ]);
       if (removed.length) await store.deleteTransactions(removed);
       if (cursor) await store.saveCursor(item.itemId, cursor);
       report.added = added.length;
@@ -199,6 +211,11 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
     }
   } catch (err) {
     const code = errorCode(err);
+    if (code === "ADDITIONAL_CONSENT_REQUIRED" && report.accounts > 0) {
+      report.status = "balances_only";
+      report.error = code;
+      return report;
+    }
     report.status = LOGIN_CODES.has(code) ? "login_required" : "error";
     report.error = code;
     return report;
@@ -210,5 +227,5 @@ export async function syncAll(plaid: PlaidLike, store: SyncStore, now = new Date
   const items = await store.getPlaidItems();
   const reports: ItemReport[] = [];
   for (const item of items) reports.push(await syncItem(plaid, store, item, now));
-  return { ok: reports.every((r) => r.status === "ok" || r.status === "skipped_mock"), items: reports };
+  return { ok: reports.every((r) => r.status === "ok" || r.status === "balances_only" || r.status === "skipped_mock"), items: reports };
 }

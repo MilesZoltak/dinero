@@ -15,6 +15,7 @@ function memStore(items: ItemRecord[]) {
     async upsertTransactions(t: TxWrite[]) { t.forEach((x) => s.txs.set(x.id, { ...s.txs.get(x.id), ...x })); },
     async deleteTransactions(ids: string[]) { s.deleted.push(...ids); },
     async saveCursor(id: string, c: string) { s.cursors.set(id, c); },
+    async existingCategorizedIds(ids: string[]) { return new Set(ids.filter((i) => s.txs.get(i)?.category)); },
   };
   return s satisfies SyncStore & Record<string, unknown>;
 }
@@ -129,4 +130,41 @@ test("mock items are skipped and never sent to Plaid", async () => {
   assert.equal(r.items[0].status, "skipped_mock");
   assert.equal(r.ok, true);
   assert.equal(called, false);
+});
+
+test("replaying history (added) does not overwrite categories we already hold", async () => {
+  const plaid: PlaidLike = {
+    accountsGet: async () => ({ data: { accounts: [] } }),
+    transactionsSync: async () => ({ data: {
+      added: [tx("have", { personal_finance_category: { primary: "GENERAL" } }), tx("fresh", { personal_finance_category: { primary: "GENERAL" } })],
+      modified: [], removed: [], next_cursor: "c", has_more: false } }),
+  };
+  const store = memStore([item("i1")]);
+  store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, category: "Food & Drink" });
+  await syncAll(plaid, store);
+  assert.equal(store.txs.get("have")?.category, "Food & Drink");
+  assert.equal(store.txs.get("fresh")?.category, "GENERAL");
+});
+
+test("no transactions consent is reported as balances_only, with balances still saved", async () => {
+  const plaid: PlaidLike = {
+    accountsGet: async () => ({ data: { accounts: [acct] } }),
+    transactionsSync: async () => { throw plaidErr("ADDITIONAL_CONSENT_REQUIRED"); },
+  };
+  const store = memStore([item("inv")]);
+  const r = await syncAll(plaid, store);
+  assert.equal(r.items[0].status, "balances_only");
+  assert.equal(r.items[0].accounts, 1);
+  assert.equal(r.ok, true);
+  assert.equal(store.accounts.get("a1")?.balance, 99.5);
+  assert.equal(store.cursors.size, 0);
+});
+
+test("consent error before any account is read stays an error", async () => {
+  const plaid: PlaidLike = {
+    accountsGet: async () => { throw plaidErr("ADDITIONAL_CONSENT_REQUIRED"); },
+    transactionsSync: async () => { throw new Error("unreachable"); },
+  };
+  const r = await syncAll(plaid, memStore([item("i1")]));
+  assert.equal(r.items[0].status, "error");
 });

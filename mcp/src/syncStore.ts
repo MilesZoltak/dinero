@@ -46,6 +46,16 @@ export function createFirestoreSyncStore(projectId?: string): SyncStore {
         await batch.commit();
       }
     },
+    async existingCategorizedIds(ids) {
+      const found = new Set<string>();
+      for (const part of chunks(ids, 300)) {
+        if (!part.length) continue;
+        const refs = part.map((id) => db.collection("transactions").doc(id));
+        const docs = await db.getAll(...refs, { fieldMask: ["category"] });
+        for (const d of docs) if (d.exists && d.get("category")) found.add(d.id);
+      }
+      return found;
+    },
     async saveCursor(itemId, cursor) {
       await db.collection("plaidItems").doc(itemId).set({ syncCursor: cursor }, { merge: true });
     },
