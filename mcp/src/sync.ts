@@ -50,6 +50,8 @@ export interface ItemRecord {
   accessToken: string;
   institutionName: string;
   syncCursor?: string;
+  /** Set when the stored token could not be decrypted; the item is reported, not synced. */
+  tokenError?: string;
 }
 
 export interface AccountWrite {
@@ -170,6 +172,11 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
     modified: 0,
     removed: 0,
   };
+  if (item.tokenError) {
+    report.status = "error";
+    report.error = item.tokenError;
+    return report;
+  }
   if (!item.accessToken || item.accessToken.startsWith("mock_")) {
     report.status = "skipped_mock";
     return report;

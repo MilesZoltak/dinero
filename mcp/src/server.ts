@@ -6,10 +6,11 @@ import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
 import { verifyGoogleServiceToken } from "./oidc.ts";
 import { CategoryBusyError, recategorizeAll, withCategoryLock, type RecategorizeReport } from "./recategorize.ts";
-import { createFirestoreCategoryStore, createFirestoreCategoryWriteStore, createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { createFirestoreCategoryStore, createFirestoreCategoryWriteStore, createFirestoreLinkStore, createFirestoreTokenMigrationStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
 import { finishLink, LinkError, startLink, type FinishResult, type StartResult } from "./link.ts";
 import { syncAll, type SyncOptions, type SyncReport } from "./sync.ts";
 import { registerWriteTools, type CategoryWriteStore } from "./categoryWrites.ts";
+import { cipherFromEnv, migrateTokens as migrateTokensImpl, TokenCryptoError, type TokenMigrationReport } from "./tokenCrypto.ts";
 
 /**
  * Dinero MCP endpoint: read-only finance tools over Firestore, plus category
@@ -38,6 +39,8 @@ export interface AppOptions {
   recategorize?: (opts: { dryRun: boolean }) => Promise<RecategorizeReport>;
   /** When set, the category write tools are registered (DINERO_WRITE_TOOLS=on). */
   writeStore?: CategoryWriteStore;
+  /** Encrypts stored Plaid tokens. The report never contains token material. */
+  migrateTokens?: (opts: { dryRun: boolean }) => Promise<TokenMigrationReport>;
 }
 
 export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner, opts: AppOptions = {}) {
@@ -163,6 +166,29 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     }
   });
 
+  // One-time encryption of stored Plaid tokens. A dry run unless the body says {"apply": true}.
+  let migrating = false;
+  app.post("/admin/encrypt-tokens", authenticate, async (req, res) => {
+    if (!opts.migrateTokens) {
+      res.status(503).json({ error: "Token migration is not available." });
+      return;
+    }
+    if (migrating) {
+      res.status(409).json({ error: "A migration is already running." });
+      return;
+    }
+    migrating = true;
+    try {
+      res.json(await opts.migrateTokens({ dryRun: req.body?.apply !== true }));
+    } catch (err) {
+      const message = err instanceof TokenCryptoError ? err.message : "Migration failed.";
+      console.error("token migration failed:", err instanceof Error ? err.message : "unknown error");
+      res.status(err instanceof TokenCryptoError ? 400 : 500).json({ error: message });
+    } finally {
+      migrating = false;
+    }
+  });
+
   // Bank linking via Plaid Hosted Link (see link.ts). Not MCP tools.
   const linkRoute = (fn: (body: Record<string, unknown>) => Promise<unknown>) => async (req: Request, res: Response) => {
     if (!link) {
@@ -219,9 +245,10 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const port = Number(process.env.PORT ?? 8080);
   const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? "dinero-3e826";
   const plaid = createPlaidFromEnv();
-  const syncStore = createFirestoreSyncStore(projectId);
+  const cipher = cipherFromEnv();
+  const syncStore = createFirestoreSyncStore(projectId, cipher);
   const runSync: SyncRunner | undefined = plaid ? (o) => syncAll(plaid, syncStore, undefined, o) : undefined;
-  const linkStore = createFirestoreLinkStore(projectId);
+  const linkStore = createFirestoreLinkStore(projectId, cipher);
   const link: LinkRunner | undefined = plaid
     ? { start: (o) => startLink(plaid, linkStore, o), finish: (t) => finishLink(plaid, linkStore, t) }
     : undefined;
@@ -232,5 +259,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const categoryStore = createFirestoreCategoryStore(projectId);
   const recategorize = (o: { dryRun: boolean }) => recategorizeAll(categoryStore, o);
   const writeStore = process.env.DINERO_WRITE_TOOLS === "on" ? createFirestoreCategoryWriteStore(projectId) : undefined;
-  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken, recategorize, writeStore }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const tokenStore = createFirestoreTokenMigrationStore(projectId);
+  const migrateTokens = (o: { dryRun: boolean }) => migrateTokensImpl(tokenStore, cipher, o);
+  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken, recategorize, writeStore, migrateTokens }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

@@ -288,3 +288,23 @@ test("write tools are listed only when a write store is given, and are not marke
     s.close();
   }
 });
+
+test("/admin/encrypt-tokens needs the bearer token and is a dry run unless apply is true", async () => {
+  const calls: boolean[] = [];
+  const SCHED = "scheduler-identity-token";
+  const s = createApp(TOKEN, fakeStore, undefined, undefined, {
+    verifySchedulerToken: async (t) => t === SCHED,
+    migrateTokens: async ({ dryRun }) => (calls.push(dryRun), { dryRun, items: [], encrypted: 0 }),
+  }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    assert.equal((await postJson(url, "/admin/encrypt-tokens", {})).status, 401);
+    assert.equal((await postJson(url, "/admin/encrypt-tokens", {}, SCHED)).status, 401);
+    assert.equal((await postJson(url, "/admin/encrypt-tokens", {}, TOKEN)).status, 200);
+    assert.equal((await postJson(url, "/admin/encrypt-tokens", { apply: true }, TOKEN)).status, 200);
+    assert.deepEqual(calls, [true, false]);
+  } finally {
+    s.close();
+  }
+});

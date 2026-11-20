@@ -217,3 +217,15 @@ test("resetCursors replays from the start and backfills plaidCategory without ch
   assert.equal(old.categorySource, "rule");
   assert.equal(store.cursors.get("i1"), "c2");
 });
+
+test("an item whose token cannot be decrypted is reported and does not stop others", async () => {
+  const seen: string[] = [];
+  const plaid: PlaidLike = {
+    accountsGet: async ({ access_token }) => (seen.push(access_token), { data: { accounts: [] } }),
+    transactionsSync: async () => ({ data: { added: [], modified: [], removed: [], next_cursor: "c", has_more: false } }),
+  };
+  const report = await syncAll(plaid, memStore([item("bad", { accessToken: "", tokenError: "TOKEN_DECRYPT_FAILED" }), item("good")]));
+  assert.deepEqual(report.items.map((i) => [i.itemId, i.status, i.error]), [["bad", "error", "TOKEN_DECRYPT_FAILED"], ["good", "ok", undefined]]);
+  assert.deepEqual(seen, ["access-good"]);
+  assert.equal(report.ok, false);
+});

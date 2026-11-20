@@ -204,3 +204,45 @@ category from the pending row to the posted one.
 gcloud run services update dinero-mcp --region us-central1 --project dinero-3e826 \
   --update-env-vars DINERO_WRITE_TOOLS=on
 ```
+
+## Encrypted Plaid tokens
+
+Access tokens in `plaidItems` are encrypted with a Cloud KMS key
+(`mcp/src/tokenCrypto.ts`). The key never leaves Google, so there is no key
+file or secret to manage. Each ciphertext is bound to its item id. Stored
+values look like `kms1:<base64>`; a value without that prefix is a legacy
+plaintext token, which still works until it is migrated.
+
+The service encrypts when `KMS_KEY_NAME` is set (the key, without a version).
+Without it, plaintext tokens keep working and encrypted ones are reported as
+`TOKEN_DECRYPT_FAILED` in the sync report.
+
+One-time setup (KMS costs about $0.06 a month for one key version):
+
+```bash
+gcloud services enable cloudkms.googleapis.com --project dinero-3e826
+gcloud kms keyrings create dinero --location us-central1 --project dinero-3e826
+gcloud kms keys create plaid-tokens --keyring dinero --location us-central1 --project dinero-3e826 \
+  --purpose encryption --rotation-period 365d --next-rotation-time $(date -u -v+365d +%Y-%m-%dT%H:%M:%SZ)
+SA=$(gcloud run services describe dinero-mcp --region us-central1 --project dinero-3e826 --format 'value(spec.template.spec.serviceAccountName)')
+gcloud kms keys add-iam-policy-binding plaid-tokens --keyring dinero --location us-central1 --project dinero-3e826 \
+  --member "serviceAccount:$SA" --role roles/cloudkms.cryptoKeyEncrypterDecrypter
+gcloud run services update dinero-mcp --region us-central1 --project dinero-3e826 \
+  --update-env-vars KMS_KEY_NAME=projects/dinero-3e826/locations/us-central1/keyRings/dinero/cryptoKeys/plaid-tokens
+```
+
+Then encrypt the existing tokens. The dry run lists each bank's state without
+any token material. Each new ciphertext is decrypted and compared before it
+replaces the old value.
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}' https://<service-url>/admin/encrypt-tokens
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"apply":true}' https://<service-url>/admin/encrypt-tokens
+```
+
+The old Next.js app reads tokens as plaintext, so its own Plaid sync stops
+working for encrypted items. That is intended: `/sync` here replaces it.
+
+Do not destroy or disable the key version while tokens use it; they become
+unreadable and every bank would need re-linking. Rotation is safe: KMS keeps
+old versions for decryption.

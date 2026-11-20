@@ -5,6 +5,7 @@ import type { LinkPlaidLike, LinkStore } from "./link.ts";
 import type { CategoryRule } from "./categorize.ts";
 import type { CategoryStore, CategorizeRow } from "./recategorize.ts";
 import type { CategoryWriteStore } from "./categoryWrites.ts";
+import { noKeyCipher, type TokenCipher, type TokenMigrationStore } from "./tokenCrypto.ts";
 
 const BATCH = 400; // Firestore allows 500 writes per batch
 
@@ -14,20 +15,31 @@ function chunks<T>(xs: T[], n = BATCH): T[][] {
   return out;
 }
 
-export function createFirestoreSyncStore(projectId?: string): SyncStore {
+export function createFirestoreSyncStore(projectId?: string, cipher: TokenCipher = noKeyCipher): SyncStore {
   const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
   return {
     async getPlaidItems() {
       const snap = await db.collection("plaidItems").get();
-      return snap.docs.map((d): ItemRecord => {
-        const x = d.data();
-        return {
-          itemId: d.id,
-          accessToken: typeof x.accessToken === "string" ? x.accessToken : "",
-          institutionName: typeof x.institutionName === "string" ? x.institutionName : "",
-          syncCursor: typeof x.syncCursor === "string" ? x.syncCursor : undefined,
-        };
-      });
+      return Promise.all(
+        snap.docs.map(async (d): Promise<ItemRecord> => {
+          const x = d.data();
+          const rec: ItemRecord = {
+            itemId: d.id,
+            accessToken: "",
+            institutionName: typeof x.institutionName === "string" ? x.institutionName : "",
+            syncCursor: typeof x.syncCursor === "string" ? x.syncCursor : undefined,
+          };
+          const stored = typeof x.accessToken === "string" ? x.accessToken : "";
+          try {
+            rec.accessToken = await cipher.decrypt(stored, d.id);
+          } catch (err) {
+            // One unreadable token must not stop the other banks. Never log the token.
+            console.error(`token decrypt failed for item ${d.id}:`, err instanceof Error ? err.message : "unknown error");
+            rec.tokenError = "TOKEN_DECRYPT_FAILED";
+          }
+          return rec;
+        }),
+      );
     },
     async upsertAccounts(accounts) {
       for (const part of chunks(accounts)) {
@@ -179,20 +191,46 @@ export function createFirestoreCategoryWriteStore(projectId?: string): CategoryW
   };
 }
 
-export function createFirestoreLinkStore(projectId?: string): LinkStore {
+export function createFirestoreLinkStore(projectId?: string, cipher: TokenCipher = noKeyCipher): LinkStore {
   const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
   return {
     async getPlaidItem(itemId) {
       const d = await db.collection("plaidItems").doc(itemId).get();
       const t = d.exists ? d.get("accessToken") : null;
-      return typeof t === "string" ? { accessToken: t } : null;
+      return typeof t === "string" ? { accessToken: await cipher.decrypt(t, itemId) } : null;
     },
     async listInstitutionNames() {
       const snap = await db.collection("plaidItems").select("institutionName").get();
       return snap.docs.map((d) => String(d.get("institutionName") ?? "")).filter(Boolean);
     },
     async savePlaidItem(item) {
-      await db.collection("plaidItems").doc(item.itemId).set(item, { merge: true });
+      const accessToken = await cipher.encrypt(item.accessToken, item.itemId);
+      await db.collection("plaidItems").doc(item.itemId).set({ ...item, accessToken }, { merge: true });
+    },
+  };
+}
+
+/** For the one-time encryption of existing tokens. Raw values stay inside the service. */
+export function createFirestoreTokenMigrationStore(projectId?: string): TokenMigrationStore {
+  const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
+  return {
+    async listRawTokens() {
+      const snap = await db.collection("plaidItems").get();
+      return snap.docs.map((d) => ({
+        itemId: d.id,
+        institution: typeof d.get("institutionName") === "string" ? d.get("institutionName") : "",
+        stored: typeof d.get("accessToken") === "string" ? d.get("accessToken") : "",
+        version: d.updateTime!.toDate().toISOString() + "|" + d.updateTime!.nanoseconds,
+      }));
+    },
+    async replaceToken(itemId, stored, version) {
+      const ref = db.collection("plaidItems").doc(itemId);
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(ref);
+        const v = cur.updateTime ? cur.updateTime.toDate().toISOString() + "|" + cur.updateTime.nanoseconds : "";
+        if (v !== version) throw new Error(`plaidItems/${itemId} changed during migration; run it again.`);
+        tx.update(ref, { accessToken: stored, tokenEncryptedAt: new Date().toISOString() });
+      });
     },
   };
 }
