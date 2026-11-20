@@ -170,3 +170,32 @@ test("/sync refuses overlapping runs", async () => {
     assert.equal((await first).status, 200);
   });
 });
+
+const postJson = (url: string, path: string, body: unknown, token?: string) =>
+  fetch(`${url}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+
+test("/link/* needs the token, says 503 without Plaid, and validates input", async () => {
+  await withApp(undefined, async (url) => {
+    assert.equal((await postJson(url, "/link/start", {})).status, 401);
+    assert.equal((await postJson(url, "/link/start", {}, TOKEN)).status, 503);
+  });
+  const link = {
+    start: async () => ({ mode: "new" as const, hostedLinkUrl: "https://x", linkToken: "l", expiration: null }),
+    finish: async () => ({ finished: true, exitedWithError: null, added: [], errors: [] }),
+  };
+  const s = createApp(TOKEN, fakeStore, undefined, link).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    assert.equal((await postJson(url, "/link/start", {}, TOKEN)).status, 200);
+    assert.equal((await postJson(url, "/link/start", { itemId: 5 }, TOKEN)).status, 400);
+    assert.equal((await postJson(url, "/link/finish", {}, TOKEN)).status, 400);
+    assert.equal((await postJson(url, "/link/finish", { linkToken: "l" }, TOKEN)).status, 200);
+  } finally {
+    s.close();
+  }
+});

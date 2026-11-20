@@ -42,7 +42,8 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 - Built, untested against real Plaid: `POST /sync` in `mcp/` (see `mcp/README.md`). Real Plaid only, cursor-based `/transactions/sync` with full-history paging, per-bank status report, no mock path. Needs Plaid secrets in Secret Manager and Firestore write access for the service account.
 - First real sync run on 2026-11-20: Chase, Bank of America and Marcus synced real data (880, 56 and 8 transactions). The earlier worry that Firestore held mock data was wrong. Stanford FCU returned `ITEM_LOGIN_REQUIRED` and needs re-linking. Schwab and Fidelity returned `ADDITIONAL_CONSENT_REQUIRED`: they were linked with the Investments product only, so balances sync but transactions do not (now reported as `balances_only`).
 - The first run replayed all history as "added" and overwrote categories on transactions the app already held. Fixed afterwards: existing categories are no longer overwritten. The old app's retroactive sweep (Spend page) restores rule-based categories.
-- Not built: the Plaid Link page (needed to link real banks, and to re-link expired ones), the categorizer port, encrypting access tokens at rest, a sync schedule, and the dashboard.
+- Built, untested against real Plaid: bank linking through Plaid Hosted Link (`POST /link/start`, `POST /link/finish`, see `mcp/README.md`). It replaces the planned static Link page. Covers new banks, expired logins (update mode) and adding transaction consent.
+- Not built: the categorizer port, encrypting access tokens at rest, a sync schedule, and the dashboard.
 - The old `get_spending_by_category` in `src/lib/chatbot/tools.ts` was wrong: it asked for 1000 rows but `queryTransactionsTool` clamps to 50, so category totals covered only 50 transactions. The `mcp/` version aggregates every transaction in the range.
 
 ## Security problems in the current code (fix or retire during the rewrite)

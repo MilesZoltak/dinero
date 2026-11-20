@@ -1,6 +1,7 @@
 import { Firestore } from "@google-cloud/firestore";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import type { ItemRecord, PlaidLike, SyncStore } from "./sync.ts";
+import type { LinkPlaidLike, LinkStore } from "./link.ts";
 
 const BATCH = 400; // Firestore allows 500 writes per batch
 
@@ -63,7 +64,25 @@ export function createFirestoreSyncStore(projectId?: string): SyncStore {
 }
 
 /** Returns null when Plaid credentials are not configured. Never falls back to mock data. */
-export function createPlaidFromEnv(env = process.env): PlaidLike | null {
+export function createFirestoreLinkStore(projectId?: string): LinkStore {
+  const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
+  return {
+    async getPlaidItem(itemId) {
+      const d = await db.collection("plaidItems").doc(itemId).get();
+      const t = d.exists ? d.get("accessToken") : null;
+      return typeof t === "string" ? { accessToken: t } : null;
+    },
+    async listInstitutionNames() {
+      const snap = await db.collection("plaidItems").select("institutionName").get();
+      return snap.docs.map((d) => String(d.get("institutionName") ?? "")).filter(Boolean);
+    },
+    async savePlaidItem(item) {
+      await db.collection("plaidItems").doc(item.itemId).set(item, { merge: true });
+    },
+  };
+}
+
+export function createPlaidFromEnv(env = process.env): (PlaidLike & LinkPlaidLike) | null {
   const clientId = env.PLAID_CLIENT_ID;
   const secret = env.PLAID_SECRET;
   if (!clientId || !secret) return null;
@@ -75,5 +94,5 @@ export function createPlaidFromEnv(env = process.env): PlaidLike | null {
       basePath,
       baseOptions: { headers: { "PLAID-CLIENT-ID": clientId, "PLAID-SECRET": secret } },
     }),
-  ) as unknown as PlaidLike;
+  ) as unknown as PlaidLike & LinkPlaidLike;
 }

@@ -4,7 +4,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
-import { createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { finishLink, LinkError, startLink, type FinishResult, type StartResult } from "./link.ts";
 import { syncAll, type SyncReport } from "./sync.ts";
 
 /**
@@ -21,8 +22,12 @@ export function tokensEqual(a: string, b: string): boolean {
 }
 
 export type SyncRunner = () => Promise<SyncReport>;
+export interface LinkRunner {
+  start(opts: { itemId?: string; addTransactions?: boolean }): Promise<StartResult>;
+  finish(linkToken: string): Promise<FinishResult>;
+}
 
-export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner) {
+export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner) {
   if (expectedToken.length < 32) {
     throw new Error("MCP_BEARER_TOKEN must be at least 32 characters");
   }
@@ -103,6 +108,40 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     }
   });
 
+  // Bank linking via Plaid Hosted Link (see link.ts). Not MCP tools.
+  const linkRoute = (fn: (body: Record<string, unknown>) => Promise<unknown>) => async (req: Request, res: Response) => {
+    if (!link) {
+      res.status(503).json({ error: "Plaid is not configured (PLAID_CLIENT_ID / PLAID_SECRET)." });
+      return;
+    }
+    try {
+      res.json(await fn((req.body ?? {}) as Record<string, unknown>));
+    } catch (err) {
+      if (err instanceof LinkError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
+      console.error("link failed", err);
+      res.status(500).json({ error: "Link failed." });
+    }
+  };
+  app.post(
+    "/link/start",
+    authenticate,
+    linkRoute(async (b) => {
+      if (b.itemId !== undefined && typeof b.itemId !== "string") throw new LinkError("itemId must be a string.", 400);
+      return link!.start({ itemId: b.itemId as string | undefined, addTransactions: b.addTransactions === true });
+    }),
+  );
+  app.post(
+    "/link/finish",
+    authenticate,
+    linkRoute(async (b) => {
+      if (typeof b.linkToken !== "string" || !b.linkToken) throw new LinkError("linkToken is required.", 400);
+      return link!.finish(b.linkToken);
+    }),
+  );
+
   const notAllowed = (_req: Request, res: Response) => {
     res.status(405).set("Allow", "POST").json({
       jsonrpc: "2.0",
@@ -127,5 +166,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const plaid = createPlaidFromEnv();
   const syncStore = createFirestoreSyncStore(projectId);
   const runSync: SyncRunner | undefined = plaid ? () => syncAll(plaid, syncStore) : undefined;
-  createApp(token, createFirestoreStore(projectId), runSync).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const linkStore = createFirestoreLinkStore(projectId);
+  const link: LinkRunner | undefined = plaid
+    ? { start: (o) => startLink(plaid, linkStore, o), finish: (t) => finishLink(plaid, linkStore, t) }
+    : undefined;
+  createApp(token, createFirestoreStore(projectId), runSync, link).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

@@ -66,3 +66,37 @@ and `roles/datastore.user` (write access) on the project. Run a sync:
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" https://<service-url>/sync
 ```
+
+## Linking and re-linking banks
+
+Uses Plaid Hosted Link: Plaid serves the sign-in screen, so there is no
+frontend to host. Three cases, all `POST` with the bearer token:
+
+```bash
+# Expired login (status login_required in the /sync report): update mode
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"itemId":"<itemId from the sync report>"}' https://<service-url>/link/start
+
+# Add transaction access to an investments-only bank (status balances_only)
+curl -s -X POST ... -d '{"itemId":"<itemId>","addTransactions":true}' https://<service-url>/link/start
+
+# A brand-new bank
+curl -s -X POST ... -d '{}' https://<service-url>/link/start
+```
+
+Open the returned `hostedLinkUrl` in a browser and sign in to the bank. When
+Plaid says you are done, finish the session with the returned `linkToken`:
+
+```bash
+curl -s -X POST ... -d '{"linkToken":"<linkToken>"}' https://<service-url>/link/finish
+```
+
+For a new bank this exchanges and stores the connection. For update mode it adds
+nothing; the existing connection simply works again. Then run `POST /sync`.
+
+Use update mode for expired logins. Linking the same bank as "new" creates a
+second connection with a second copy of every account.
+
+If `/link/start` says Hosted Link is not enabled, turn it on in the Plaid
+dashboard. OAuth banks (Chase, Schwab, Fidelity) may also need an allowed
+redirect URI registered there.
