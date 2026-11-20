@@ -246,3 +246,45 @@ test("/categorize is a dry run unless apply is true, and needs the bearer token"
   }
   await withApp(undefined, async (url) => assert.equal((await postJson(url, "/categorize", {}, TOKEN)).status, 503));
 });
+
+test("/sync resetCursors needs the bearer token, not the scheduler identity", async () => {
+  const SCHED = "scheduler-identity-token";
+  const calls: unknown[] = [];
+  const s = createApp(TOKEN, fakeStore, async (o) => (calls.push(o), { ok: true, items: [] }), undefined, { verifySchedulerToken: async (t) => t === SCHED }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    assert.equal((await postJson(url, "/sync", { resetCursors: true }, SCHED)).status, 403);
+    assert.equal((await postJson(url, "/sync", { resetCursors: true }, TOKEN)).status, 200);
+    assert.equal((await postJson(url, "/sync", {}, SCHED)).status, 200);
+    assert.deepEqual(calls, [{ resetCursors: true }, undefined]);
+  } finally {
+    s.close();
+  }
+});
+
+test("write tools are listed only when a write store is given, and are not marked read-only", async () => {
+  const writeStore = {
+    getRules: async () => [], getRows: async () => [], getTransaction: async () => null, setTransactionCategory: async () => {},
+    updateCategories: async () => {}, createRule: async () => {}, deleteRule: async () => {}, addAudit: async () => {},
+  };
+  const s = createApp(TOKEN, fakeStore, undefined, undefined, { writeStore }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    const call = (body: unknown) =>
+      fetch(`${url}/mcp`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${TOKEN}` }, body: JSON.stringify(body) });
+    const list = await (await call({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json();
+    const byName = Object.fromEntries(list.result.tools.map((t: { name: string; annotations?: Record<string, boolean> }) => [t.name, t.annotations]));
+    for (const n of ["set_transaction_category", "add_category_rule", "delete_category_rule"]) {
+      assert.equal(byName[n]?.readOnlyHint, false, n);
+      assert.equal(byName[n]?.destructiveHint, true, n);
+    }
+    assert.equal(byName.list_category_rules?.readOnlyHint, true);
+    const res = await (await call({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "set_transaction_category", arguments: { transactionId: "x", category: "Shopping" } } })).json();
+    assert.equal(res.result.isError, true);
+    assert.match(res.result.content[0].text, /No transaction/);
+  } finally {
+    s.close();
+  }
+});

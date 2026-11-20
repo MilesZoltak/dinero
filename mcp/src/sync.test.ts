@@ -17,6 +17,11 @@ function memStore(items: ItemRecord[]) {
     async saveCursor(id: string, c: string) { s.cursors.set(id, c); },
     async getCategoryRules() { return []; },
     async existingCategorizedIds(ids: string[]) { return new Set(ids.filter((i) => s.txs.get(i)?.category)); },
+    async manualCategories(ids: string[]) {
+      const m = new Map<string, { category: string; subcategory: string | null }>();
+      for (const i of ids) { const t = s.txs.get(i); if (t?.categorySource === "manual" && t.category) m.set(i, { category: t.category, subcategory: t.subcategory ?? null }); }
+      return m;
+    },
   };
   return s satisfies SyncStore & Record<string, unknown>;
 }
@@ -171,4 +176,44 @@ test("consent error before any account is read stays an error", async () => {
   };
   const r = await syncAll(plaid, memStore([item("i1")]));
   assert.equal(r.items[0].status, "error");
+});
+
+test("a posted transaction inherits the manual category of the pending one it replaces", async () => {
+  const plaid: PlaidLike = {
+    accountsGet: async () => ({ data: { accounts: [acct] } }),
+    transactionsSync: async () => ({
+      data: {
+        added: [tx("posted", { pending_transaction_id: "pend", personal_finance_category: { primary: "FOOD_AND_DRINK" } }), tx("other", { pending_transaction_id: "auto", personal_finance_category: { primary: "TRAVEL" } })],
+        modified: [], removed: [{ transaction_id: "pend" }, { transaction_id: "auto" }], next_cursor: "c", has_more: false,
+      },
+    }),
+  };
+  const store = memStore([item("i1")]);
+  store.txs.set("pend", { ...({} as TxWrite), id: "pend", category: "Shopping", subcategory: "Gifts", categorySource: "manual" });
+  store.txs.set("auto", { ...({} as TxWrite), id: "auto", category: "Other", subcategory: null, categorySource: "plaid" });
+  await syncAll(plaid, store);
+  const posted = store.txs.get("posted")!;
+  assert.deepEqual([posted.category, posted.subcategory, posted.categorySource, posted.plaidCategory], ["Shopping", "Gifts", "manual", "FOOD_AND_DRINK"]);
+  assert.equal(store.txs.get("other")?.categorySource, "plaid", "non-manual pending rows are categorized normally");
+  assert.deepEqual(store.deleted, ["pend", "auto"]);
+});
+
+test("resetCursors replays from the start and backfills plaidCategory without changing categories", async () => {
+  let seen: string | undefined = "unset";
+  const plaid: PlaidLike = {
+    accountsGet: async () => ({ data: { accounts: [] } }),
+    transactionsSync: async ({ cursor }) => {
+      seen = cursor;
+      return { data: { added: [tx("old", { personal_finance_category: { primary: "MEDICAL" } })], modified: [], removed: [], next_cursor: "c2", has_more: false } };
+    },
+  };
+  const store = memStore([item("i1", { syncCursor: "c5" })]);
+  store.txs.set("old", { ...({} as TxWrite), id: "old", category: "Utilities & Bills", plaidCategory: null, categorySource: "rule" });
+  await syncAll(plaid, store, undefined, { resetCursors: true });
+  assert.equal(seen, undefined);
+  const old = store.txs.get("old")!;
+  assert.equal(old.plaidCategory, "MEDICAL");
+  assert.equal(old.category, "Utilities & Bills");
+  assert.equal(old.categorySource, "rule");
+  assert.equal(store.cursors.get("i1"), "c2");
 });

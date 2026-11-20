@@ -34,6 +34,30 @@ export interface RecategorizeReport {
   sample: { name: string; from: string; to: string }[];
 }
 
+/** Thrown when another category change is already running in this instance. */
+export class CategoryBusyError extends Error {
+  constructor() {
+    super("Another category change is already running. Try again in a moment.");
+  }
+}
+
+let busy = false;
+
+/**
+ * Serializes everything that reads and rewrites categories (/categorize, rule
+ * changes, manual edits), so a sweep cannot write back over a manual edit made
+ * while it ran. Per instance only, which is enough for one user.
+ */
+export async function withCategoryLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (busy) throw new CategoryBusyError();
+  busy = true;
+  try {
+    return await fn();
+  } finally {
+    busy = false;
+  }
+}
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /**

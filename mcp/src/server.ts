@@ -5,13 +5,15 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
 import { verifyGoogleServiceToken } from "./oidc.ts";
-import { recategorizeAll, type RecategorizeReport } from "./recategorize.ts";
-import { createFirestoreCategoryStore, createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { CategoryBusyError, recategorizeAll, withCategoryLock, type RecategorizeReport } from "./recategorize.ts";
+import { createFirestoreCategoryStore, createFirestoreCategoryWriteStore, createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
 import { finishLink, LinkError, startLink, type FinishResult, type StartResult } from "./link.ts";
-import { syncAll, type SyncReport } from "./sync.ts";
+import { syncAll, type SyncOptions, type SyncReport } from "./sync.ts";
+import { registerWriteTools, type CategoryWriteStore } from "./categoryWrites.ts";
 
 /**
- * Dinero MCP endpoint: read-only finance tools over Firestore.
+ * Dinero MCP endpoint: read-only finance tools over Firestore, plus category
+ * write tools (categoryWrites.ts) when DINERO_WRITE_TOOLS=on.
  *
  * Auth here is the plan's fallback: one long random bearer token. Swap
  * `authenticate` for OAuth once the Google sign-in flow has been tested.
@@ -23,7 +25,7 @@ export function tokensEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-export type SyncRunner = () => Promise<SyncReport>;
+export type SyncRunner = (opts?: SyncOptions) => Promise<SyncReport>;
 export interface LinkRunner {
   start(opts: { itemId?: string; addTransactions?: boolean }): Promise<StartResult>;
   finish(linkToken: string): Promise<FinishResult>;
@@ -34,6 +36,8 @@ export interface AppOptions {
   verifySchedulerToken?: (token: string) => Promise<boolean>;
   /** Recomputes categories. Present when Firestore is available. */
   recategorize?: (opts: { dryRun: boolean }) => Promise<RecategorizeReport>;
+  /** When set, the category write tools are registered (DINERO_WRITE_TOOLS=on). */
+  writeStore?: CategoryWriteStore;
 }
 
 export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner, opts: AppOptions = {}) {
@@ -63,7 +67,12 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
 
   const authenticateSync = async (req: Request, res: Response, next: NextFunction) => {
     const match = /^Bearer (.+)$/.exec(req.header("authorization") ?? "");
-    if (match && (tokensEqual(match[1], expectedToken) || (await opts.verifySchedulerToken?.(match[1])))) {
+    if (match && tokensEqual(match[1], expectedToken)) {
+      res.locals.owner = true;
+      next();
+      return;
+    }
+    if (match && (await opts.verifySchedulerToken?.(match[1]))) {
       next();
       return;
     }
@@ -73,6 +82,7 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
   const buildServer = () => {
     const server = new McpServer({ name: "dinero", version: "0.1.0" });
     registerTools(server, store);
+    if (opts.writeStore) registerWriteTools(server, opts.writeStore);
     return server;
   };
 
@@ -102,10 +112,16 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     }
   });
 
-  // Not an MCP tool on purpose: tools stay read-only. Trigger with
+  // Not an MCP tool on purpose: Claude cannot trigger Plaid calls. Trigger with
   // curl -X POST -H "Authorization: Bearer $TOKEN" <service-url>/sync
   let syncing = false;
-  app.post("/sync", authenticateSync, async (_req, res) => {
+  // {"resetCursors": true} replays all history to backfill plaidCategory. Bearer token only, not the scheduler.
+  app.post("/sync", authenticateSync, async (req, res) => {
+    const resetCursors = req.body?.resetCursors === true;
+    if (resetCursors && res.locals.owner !== true) {
+      res.status(403).json({ error: "resetCursors needs the bearer token." });
+      return;
+    }
     if (!runSync) {
       res.status(503).json({ error: "Plaid is not configured (PLAID_CLIENT_ID / PLAID_SECRET)." });
       return;
@@ -116,7 +132,7 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     }
     syncing = true;
     try {
-      const report = await runSync();
+      const report = await runSync(resetCursors ? { resetCursors } : undefined);
       for (const i of report.items) {
         if (i.status !== "ok" && i.status !== "skipped_mock") console.warn(`sync: ${i.institution} ${i.status} ${i.error ?? ""}`.trim());
       }
@@ -130,24 +146,20 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
   });
 
   // Recompute categories from the rules. A dry run unless the body says {"apply": true}.
-  let categorizing = false;
   app.post("/categorize", authenticate, async (req, res) => {
     if (!opts.recategorize) {
       res.status(503).json({ error: "Categorizing is not available." });
       return;
     }
-    if (categorizing) {
-      res.status(409).json({ error: "A categorize run is already in progress." });
-      return;
-    }
-    categorizing = true;
     try {
-      res.json(await opts.recategorize({ dryRun: req.body?.apply !== true }));
+      res.json(await withCategoryLock(() => opts.recategorize!({ dryRun: req.body?.apply !== true })));
     } catch (err) {
+      if (err instanceof CategoryBusyError) {
+        res.status(409).json({ error: "A categorize run is already in progress." });
+        return;
+      }
       console.error("categorize failed", err);
       res.status(500).json({ error: "Categorize failed." });
-    } finally {
-      categorizing = false;
     }
   });
 
@@ -208,7 +220,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? "dinero-3e826";
   const plaid = createPlaidFromEnv();
   const syncStore = createFirestoreSyncStore(projectId);
-  const runSync: SyncRunner | undefined = plaid ? () => syncAll(plaid, syncStore) : undefined;
+  const runSync: SyncRunner | undefined = plaid ? (o) => syncAll(plaid, syncStore, undefined, o) : undefined;
   const linkStore = createFirestoreLinkStore(projectId);
   const link: LinkRunner | undefined = plaid
     ? { start: (o) => startLink(plaid, linkStore, o), finish: (t) => finishLink(plaid, linkStore, t) }
@@ -219,5 +231,6 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
     callerEmail && audience ? (t: string) => verifyGoogleServiceToken(t, { audience, email: callerEmail }) : undefined;
   const categoryStore = createFirestoreCategoryStore(projectId);
   const recategorize = (o: { dryRun: boolean }) => recategorizeAll(categoryStore, o);
-  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken, recategorize }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const writeStore = process.env.DINERO_WRITE_TOOLS === "on" ? createFirestoreCategoryWriteStore(projectId) : undefined;
+  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken, recategorize, writeStore }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

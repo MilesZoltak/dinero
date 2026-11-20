@@ -4,6 +4,7 @@ import type { ItemRecord, PlaidLike, SyncStore } from "./sync.ts";
 import type { LinkPlaidLike, LinkStore } from "./link.ts";
 import type { CategoryRule } from "./categorize.ts";
 import type { CategoryStore, CategorizeRow } from "./recategorize.ts";
+import type { CategoryWriteStore } from "./categoryWrites.ts";
 
 const BATCH = 400; // Firestore allows 500 writes per batch
 
@@ -62,6 +63,20 @@ export function createFirestoreSyncStore(projectId?: string): SyncStore {
       }
       return found;
     },
+    async manualCategories(ids) {
+      const found = new Map<string, { category: string; subcategory: string | null }>();
+      for (const part of chunks(ids, 300)) {
+        if (!part.length) continue;
+        const refs = part.map((id) => db.collection("transactions").doc(id));
+        const docs = await db.getAll(...refs, { fieldMask: ["category", "subcategory", "categorySource"] });
+        for (const d of docs) {
+          if (!d.exists || d.get("categorySource") !== "manual" || typeof d.get("category") !== "string") continue;
+          const sub = d.get("subcategory");
+          found.set(d.id, { category: d.get("category"), subcategory: typeof sub === "string" && sub ? sub : null });
+        }
+      }
+      return found;
+    },
     async saveCursor(itemId, cursor) {
       await db.collection("plaidItems").doc(itemId).set({ syncCursor: cursor }, { merge: true });
     },
@@ -112,6 +127,54 @@ export function createFirestoreCategoryStore(projectId?: string): CategoryStore 
         }
         await batch.commit();
       }
+    },
+  };
+}
+
+/**
+ * Writes for the Claude write tools. Field-limited on purpose: only category,
+ * subcategory, categorySource and autoCategory on transactions, categoryRules
+ * documents, and new categoryAudit entries.
+ */
+export function createFirestoreCategoryWriteStore(projectId?: string): CategoryWriteStore {
+  const db = new Firestore({ projectId, ignoreUndefinedProperties: true });
+  const base = createFirestoreCategoryStore(projectId);
+  const s = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return {
+    getRules: base.getRules,
+    getRows: base.getRows,
+    updateCategories: base.updateCategories,
+    async getTransaction(id) {
+      const d = await db.collection("transactions").doc(id).get();
+      if (!d.exists) return null;
+      const x = d.data() ?? {};
+      return {
+        id: d.id,
+        name: typeof x.name === "string" ? x.name : "",
+        category: typeof x.category === "string" ? x.category : "",
+        subcategory: s(x.subcategory),
+        plaidCategory: s(x.plaidCategory),
+        categorySource: s(x.categorySource),
+        isPending: x.isPending === true,
+        autoCategory: s(x.autoCategory),
+      };
+    },
+    async setTransactionCategory(id, v) {
+      await db.collection("transactions").doc(id).update({
+        category: v.category,
+        subcategory: v.subcategory,
+        categorySource: v.categorySource,
+        autoCategory: v.autoCategory,
+      });
+    },
+    async createRule(r) {
+      await db.collection("categoryRules").doc(r.id).create({ id: r.id, pattern: r.pattern, category: r.category, ...(r.subcategory ? { subcategory: r.subcategory } : {}) });
+    },
+    async deleteRule(id) {
+      await db.collection("categoryRules").doc(id).delete({ exists: true });
+    },
+    async addAudit(entry) {
+      await db.collection("categoryAudit").add(entry);
     },
   };
 }

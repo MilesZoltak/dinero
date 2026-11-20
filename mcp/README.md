@@ -160,6 +160,47 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/
 curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"apply":true}' https://<service-url>/categorize
 ```
 
+Rows synced before `plaidCategory` existed don't have it. To backfill it,
+replay all history once. Existing categories are not changed; this needs the
+bearer token (the scheduler cannot do it):
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"resetCursors":true}' https://<service-url>/sync
+```
+
 Default rules are seeded only when there are no rules at all, so a rule you
 deleted stays deleted. `spend_by_category` and `monthly_trend` leave out the
 `Transfer` category unless `includeTransfers` is true.
+
+## Write tools
+
+With `DINERO_WRITE_TOOLS=on`, the connector also offers tools that change
+categories. Without that variable they are not registered at all, so removing
+it turns them off without a code change.
+
+- `list_category_rules` (read-only): every rule with how many transactions it wins.
+- `set_transaction_category`: sets one transaction's category and marks it
+  `manual`, so sweeps never change it. `category: null` returns it to automatic,
+  restoring the category the manual edit replaced.
+- `add_category_rule` and `delete_category_rule`: preview by default, showing
+  how many transactions would change and a sample. Only `confirm: true` writes.
+  Only the rows the rule change affects are rewritten; manual rows never are.
+
+Safety: these tools can only change `category`, `subcategory`,
+`categorySource` and `autoCategory` on transactions, and documents in
+`categoryRules`. They cannot delete transactions or touch accounts or
+`plaidItems`. Categories must already exist (older spellings are normalized)
+unless `newCategory: true`, so typos don't create new ones. Every write adds a
+document to `categoryAudit` with the values before and after. All category
+writes, including `/categorize`, take one lock, so a sweep cannot overwrite a
+manual edit made while it runs. The tools are marked destructive so Claude asks
+before calling them; keep them on "ask" in the connector settings, since
+transaction names are merchant-written text that ends up in chats.
+
+When a pending transaction posts, Plaid gives it a new id. Sync copies a manual
+category from the pending row to the posted one.
+
+```bash
+gcloud run services update dinero-mcp --region us-central1 --project dinero-3e826 \
+  --update-env-vars DINERO_WRITE_TOOLS=on
+```

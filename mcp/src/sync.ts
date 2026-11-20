@@ -26,6 +26,8 @@ export interface PlaidTxLike {
   name: string;
   merchant_name?: string | null;
   pending?: boolean;
+  /** On a posted transaction: the id of the pending transaction it replaces. */
+  pending_transaction_id?: string | null;
   personal_finance_category?: { primary?: string } | null;
   category?: string[] | null;
 }
@@ -77,7 +79,12 @@ export interface TxWrite {
   /** Only set for new transactions, so recategorization survives later syncs. */
   category?: string;
   subcategory?: string | null;
-  categorySource?: "rule" | "plaid" | "existing" | "default";
+  categorySource?: "rule" | "plaid" | "existing" | "default" | "manual";
+}
+
+export interface ManualCategory {
+  category: string;
+  subcategory: string | null;
 }
 
 export interface SyncStore {
@@ -89,6 +96,17 @@ export interface SyncStore {
   getCategoryRules(): Promise<CategoryRule[]>;
   /** Of these ids, the ones that already exist with a category. Their category must not be overwritten. */
   existingCategorizedIds(ids: string[]): Promise<Set<string>>;
+  /** Of these ids, the ones set by hand (categorySource "manual"), with their category. */
+  manualCategories(ids: string[]): Promise<Map<string, ManualCategory>>;
+}
+
+export interface SyncOptions {
+  /**
+   * Ignore stored cursors and replay all history Plaid has. Existing rows keep
+   * their category but get Plaid's category stored (plaidCategory), which is how
+   * rows synced before that field existed are backfilled.
+   */
+  resetCursors?: boolean;
 }
 
 /**
@@ -142,7 +160,7 @@ function toTx(t: PlaidTxLike, withCategory: boolean, rules: CategoryRule[]): TxW
   return w;
 }
 
-async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, now: string, rules: CategoryRule[]): Promise<ItemReport> {
+async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, now: string, rules: CategoryRule[], opts: SyncOptions): Promise<ItemReport> {
   const report: ItemReport = {
     itemId: item.itemId,
     institution: item.institutionName,
@@ -183,7 +201,7 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
       const added: PlaidTxLike[] = [];
       const modified: PlaidTxLike[] = [];
       const removed: string[] = [];
-      let cursor = item.syncCursor;
+      let cursor = opts.resetCursors ? undefined : item.syncCursor;
       let restart = false;
 
       for (let page = 0; page < MAX_PAGES; page++) {
@@ -209,8 +227,15 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
       // A transaction we already hold keeps its category (the first run replays all
       // history, including rows the app has already categorized).
       const keep = await store.existingCategorizedIds(added.map((t) => t.transaction_id));
+      // A pending transaction that posts arrives as a new id. Carry a manual category over to it.
+      const pendingIds = added.flatMap((t) => (t.pending_transaction_id && !keep.has(t.transaction_id) ? [t.pending_transaction_id] : []));
+      const manual = pendingIds.length ? await store.manualCategories(pendingIds) : new Map<string, ManualCategory>();
       await store.upsertTransactions([
-        ...added.map((t) => toTx(t, !keep.has(t.transaction_id), rules)),
+        ...added.map((t) => {
+          const m = t.pending_transaction_id ? manual.get(t.pending_transaction_id) : undefined;
+          if (m && !keep.has(t.transaction_id)) return { ...toTx(t, false, rules), category: m.category, subcategory: m.subcategory, categorySource: "manual" as const };
+          return toTx(t, !keep.has(t.transaction_id), rules);
+        }),
         ...modified.map((t) => toTx(t, false, rules)),
       ]);
       if (removed.length) await store.deleteTransactions(removed);
@@ -234,10 +259,10 @@ async function syncItem(plaid: PlaidLike, store: SyncStore, item: ItemRecord, no
 }
 
 /** Syncs every item. One item failing never stops the others. */
-export async function syncAll(plaid: PlaidLike, store: SyncStore, now = new Date().toISOString()): Promise<SyncReport> {
+export async function syncAll(plaid: PlaidLike, store: SyncStore, now = new Date().toISOString(), opts: SyncOptions = {}): Promise<SyncReport> {
   const items = await store.getPlaidItems();
   const rules = await store.getCategoryRules();
   const reports: ItemReport[] = [];
-  for (const item of items) reports.push(await syncItem(plaid, store, item, now, rules));
+  for (const item of items) reports.push(await syncItem(plaid, store, item, now, rules, opts));
   return { ok: reports.every((r) => r.status === "ok" || r.status === "balances_only" || r.status === "skipped_mock"), items: reports };
 }
