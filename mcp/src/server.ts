@@ -2,10 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createFirestoreStore, type Store } from "./store.ts";
+import { registerTools } from "./tools.ts";
 
 /**
- * Bare-bones Dinero MCP endpoint. Its only job is to prove that a Claude chat
- * can authenticate to and call a tool on a Cloud Run service. No finance data.
+ * Dinero MCP endpoint: read-only finance tools over Firestore.
  *
  * Auth here is the plan's fallback: one long random bearer token. Swap
  * `authenticate` for OAuth once the Google sign-in flow has been tested.
@@ -17,7 +18,7 @@ export function tokensEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-export function createApp(expectedToken: string) {
+export function createApp(expectedToken: string, store: Store) {
   if (expectedToken.length < 32) {
     throw new Error("MCP_BEARER_TOKEN must be at least 32 characters");
   }
@@ -43,22 +44,8 @@ export function createApp(expectedToken: string) {
   };
 
   const buildServer = () => {
-    const server = new McpServer({ name: "dinero", version: "0.0.1" });
-    server.registerTool(
-      "ping",
-      {
-        description:
-          "Connectivity check for the Dinero connector. Returns 'pong' and the server time. Contains no financial data.",
-      },
-      async () => ({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ reply: "pong", serverTime: new Date().toISOString() }),
-          },
-        ],
-      }),
-    );
+    const server = new McpServer({ name: "dinero", version: "0.1.0" });
+    registerTools(server, store);
     return server;
   };
 
@@ -108,5 +95,5 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
     process.exit(1);
   }
   const port = Number(process.env.PORT ?? 8080);
-  createApp(token).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  createApp(token, createFirestoreStore(process.env.GOOGLE_CLOUD_PROJECT ?? "dinero-3e826")).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }
