@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "tsx --test src/server.test.ts src/sync.test.ts src/link.test.ts"
+    "test": "tsx --test src/server.test.ts src/sync.test.ts src/link.test.ts src/oidc.test.ts"
   },
   "engines": {
     "node": ">=22"
@@ -16,6 +16,7 @@
     "@google-cloud/firestore": "^9.4.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "express": "^5.3.0",
+    "jose": "^6.2.18",
     "plaid": "^45.0.0",
     "zod": "^4.6.7"
   },

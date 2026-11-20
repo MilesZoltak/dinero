@@ -101,3 +101,34 @@ second connection with a second copy of every account.
 If `/link/start` says Hosted Link is not enabled, turn it on in the Plaid
 dashboard. OAuth banks (Chase, Schwab, Fidelity) may also need an allowed
 redirect URI registered there.
+
+## Daily sync schedule
+
+Cloud Scheduler calls `POST /sync` with a Google-signed identity token for a
+dedicated service account, so the bearer token is never copied into the
+scheduler. The service accepts that identity for `/sync` only; it cannot reach
+`/mcp` or `/link/*`. It is enabled by two environment variables:
+
+- `SYNC_CALLER_EMAIL`: the service account the scheduler runs as
+- `SYNC_AUDIENCE`: the service URL, which must match the scheduler's audience exactly
+
+```bash
+gcloud services enable cloudscheduler.googleapis.com --project dinero-3e826
+gcloud iam service-accounts create dinero-sync --project dinero-3e826 --display-name "Dinero daily sync"
+
+gcloud run services update dinero-mcp --project dinero-3e826 --region us-central1 \
+  --update-env-vars SYNC_CALLER_EMAIL=dinero-sync@dinero-3e826.iam.gserviceaccount.com,SYNC_AUDIENCE=https://dinero-mcp-296300418387.us-central1.run.app
+
+gcloud scheduler jobs create http dinero-sync --project dinero-3e826 --location us-central1 \
+  --schedule "0 6 * * *" --time-zone "America/Los_Angeles" \
+  --uri https://dinero-mcp-296300418387.us-central1.run.app/sync --http-method POST \
+  --oidc-service-account-email dinero-sync@dinero-3e826.iam.gserviceaccount.com \
+  --oidc-token-audience https://dinero-mcp-296300418387.us-central1.run.app \
+  --attempt-deadline 600s
+```
+
+Run it now to test: `gcloud scheduler jobs run dinero-sync --location us-central1 --project dinero-3e826`.
+
+A bank that needs a fresh login does not make the job fail: the response is 207
+and the service logs a `sync: <bank> login_required` warning. The dashboard
+shows accounts that have not synced in over 7 days.

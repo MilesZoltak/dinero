@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
+import { verifyGoogleServiceToken } from "./oidc.ts";
 import { createFirestoreLinkStore, createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
 import { finishLink, LinkError, startLink, type FinishResult, type StartResult } from "./link.ts";
 import { syncAll, type SyncReport } from "./sync.ts";
@@ -27,7 +28,12 @@ export interface LinkRunner {
   finish(linkToken: string): Promise<FinishResult>;
 }
 
-export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner) {
+export interface AppOptions {
+  /** Lets a trusted machine caller (Cloud Scheduler) run /sync, and only /sync, without the bearer token. */
+  verifySchedulerToken?: (token: string) => Promise<boolean>;
+}
+
+export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner, link?: LinkRunner, opts: AppOptions = {}) {
   if (expectedToken.length < 32) {
     throw new Error("MCP_BEARER_TOKEN must be at least 32 characters");
   }
@@ -50,6 +56,15 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
       return;
     }
     next();
+  };
+
+  const authenticateSync = async (req: Request, res: Response, next: NextFunction) => {
+    const match = /^Bearer (.+)$/.exec(req.header("authorization") ?? "");
+    if (match && (tokensEqual(match[1], expectedToken) || (await opts.verifySchedulerToken?.(match[1])))) {
+      next();
+      return;
+    }
+    res.status(401).set("WWW-Authenticate", 'Bearer realm="dinero-mcp"').json({ error: "unauthorized" });
   };
 
   const buildServer = () => {
@@ -87,7 +102,7 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
   // Not an MCP tool on purpose: tools stay read-only. Trigger with
   // curl -X POST -H "Authorization: Bearer $TOKEN" <service-url>/sync
   let syncing = false;
-  app.post("/sync", authenticate, async (_req, res) => {
+  app.post("/sync", authenticateSync, async (_req, res) => {
     if (!runSync) {
       res.status(503).json({ error: "Plaid is not configured (PLAID_CLIENT_ID / PLAID_SECRET)." });
       return;
@@ -99,6 +114,9 @@ export function createApp(expectedToken: string, store: Store, runSync?: SyncRun
     syncing = true;
     try {
       const report = await runSync();
+      for (const i of report.items) {
+        if (i.status !== "ok" && i.status !== "skipped_mock") console.warn(`sync: ${i.institution} ${i.status} ${i.error ?? ""}`.trim());
+      }
       res.status(report.ok ? 200 : 207).json(report);
     } catch (err) {
       console.error("sync failed", err);
@@ -170,5 +188,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
   const link: LinkRunner | undefined = plaid
     ? { start: (o) => startLink(plaid, linkStore, o), finish: (t) => finishLink(plaid, linkStore, t) }
     : undefined;
-  createApp(token, createFirestoreStore(projectId), runSync, link).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const callerEmail = process.env.SYNC_CALLER_EMAIL;
+  const audience = process.env.SYNC_AUDIENCE;
+  const verifySchedulerToken =
+    callerEmail && audience ? (t: string) => verifyGoogleServiceToken(t, { audience, email: callerEmail }) : undefined;
+  createApp(token, createFirestoreStore(projectId), runSync, link, { verifySchedulerToken }).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

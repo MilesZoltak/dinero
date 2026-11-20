@@ -199,3 +199,24 @@ test("/link/* needs the token, says 503 without Plaid, and validates input", asy
     s.close();
   }
 });
+
+test("the scheduler's identity can run /sync but nothing else", async () => {
+  const SCHED = "scheduler-identity-token";
+  const verify = async (t: string) => t === SCHED;
+  const link = {
+    start: async () => ({ mode: "new" as const, hostedLinkUrl: "https://x", linkToken: "l", expiration: null }),
+    finish: async () => ({ finished: true, exitedWithError: null, added: [], errors: [] }),
+  };
+  const s = createApp(TOKEN, fakeStore, async () => ({ ok: true, items: [] }), link, { verifySchedulerToken: verify }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    assert.equal((await post(url, SCHED)).status, 200);
+    assert.equal((await post(url, TOKEN)).status, 200);
+    assert.equal((await post(url, "nope")).status, 401);
+    assert.equal((await postJson(url, "/link/start", {}, SCHED)).status, 401);
+    assert.equal((await rpc(init, SCHED)).status, 401);
+  } finally {
+    s.close();
+  }
+});
