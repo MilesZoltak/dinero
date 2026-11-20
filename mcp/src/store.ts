@@ -31,9 +31,29 @@ export interface TransactionFilter {
   endDate?: string;
 }
 
+export interface BalanceSnapshot {
+  date: string; // YYYY-MM-DD, Pacific time
+  totalAssets: number;
+  totalLiabilities: number;
+  netWorth: number;
+  accounts: { id: string; name: string; institutionName: string; type: string; balance: number }[];
+}
+
 export interface Store {
   getAccounts(): Promise<Account[]>;
   getTransactions(filter: TransactionFilter): Promise<Transaction[]>;
+  getBalanceSnapshots(filter: TransactionFilter): Promise<BalanceSnapshot[]>;
+}
+
+export function toSnapshot(id: string, d: Record<string, unknown>): BalanceSnapshot {
+  const accounts = Array.isArray(d.accounts) ? (d.accounts as Record<string, unknown>[]) : [];
+  return {
+    date: str(d.date, id),
+    totalAssets: num(d.totalAssets),
+    totalLiabilities: num(d.totalLiabilities),
+    netWorth: num(d.netWorth),
+    accounts: accounts.map((a) => ({ id: str(a.id), name: str(a.name), institutionName: str(a.institutionName), type: str(a.type, "other"), balance: num(a.balance) })),
+  };
 }
 
 const str = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
@@ -85,6 +105,13 @@ export function createFirestoreStore(projectId?: string): Store {
       if (endDate) q = q.where("date", "<=", endDate);
       const snap = await q.get();
       return snap.docs.map((doc) => toTransaction(doc.id, doc.data()));
+    },
+    async getBalanceSnapshots({ startDate, endDate }) {
+      let q = db.collection("balanceSnapshots").orderBy("date", "asc");
+      if (startDate) q = q.where("date", ">=", startDate);
+      if (endDate) q = q.where("date", "<=", endDate);
+      const snap = await q.get();
+      return snap.docs.map((doc) => toSnapshot(doc.id, doc.data()));
     },
   };
 }

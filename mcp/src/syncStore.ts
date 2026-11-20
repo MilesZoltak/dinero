@@ -5,6 +5,8 @@ import type { LinkPlaidLike, LinkStore } from "./link.ts";
 import type { CategoryRule } from "./categorize.ts";
 import type { CategoryStore, CategorizeRow } from "./recategorize.ts";
 import type { CategoryWriteStore } from "./categoryWrites.ts";
+import { summarizeAccounts } from "./analysis.ts";
+import { toAccount } from "./store.ts";
 import { noKeyCipher, type TokenCipher, type TokenMigrationStore } from "./tokenCrypto.ts";
 
 const BATCH = 400; // Firestore allows 500 writes per batch
@@ -88,6 +90,19 @@ export function createFirestoreSyncStore(projectId?: string, cipher: TokenCipher
         }
       }
       return found;
+    },
+    async snapshotBalances(date, takenAt) {
+      const snap = await db.collection("accounts").get();
+      const s = summarizeAccounts(snap.docs.map((d) => toAccount(d.id, d.data())));
+      await db.collection("balanceSnapshots").doc(date).set({
+        date,
+        takenAt,
+        totalAssets: s.totalAssets,
+        totalLiabilities: s.totalLiabilities,
+        netWorth: s.netWorth,
+        // Whitelisted fields only, same as the read tools.
+        accounts: s.accounts.map((a) => ({ id: a.id, name: a.name, institutionName: a.institutionName, type: a.type, balance: a.balance, lastSync: a.lastSync })),
+      });
     },
     async saveCursor(itemId, cursor) {
       await db.collection("plaidItems").doc(itemId).set({ syncCursor: cursor }, { merge: true });

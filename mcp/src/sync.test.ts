@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { syncAll, type AccountWrite, type ItemRecord, type PlaidLike, type PlaidTxLike, type SyncStore, type TxWrite } from "./sync.ts";
+import { localDate, syncAll, type AccountWrite, type ItemRecord, type PlaidLike, type PlaidTxLike, type SyncStore, type TxWrite } from "./sync.ts";
 
 const tx = (id: string, over: Partial<PlaidTxLike> = {}): PlaidTxLike => ({
   transaction_id: id, account_id: "a1", amount: 10, date: "2026-11-01", name: "RAW NAME", ...over,
@@ -15,6 +15,9 @@ function memStore(items: ItemRecord[]) {
     async upsertTransactions(t: TxWrite[]) { t.forEach((x) => s.txs.set(x.id, { ...s.txs.get(x.id), ...x })); },
     async deleteTransactions(ids: string[]) { s.deleted.push(...ids); },
     async saveCursor(id: string, c: string) { s.cursors.set(id, c); },
+    snapshots: [] as string[],
+    failSnapshot: false,
+    async snapshotBalances(date: string) { if (s.failSnapshot) throw new Error("boom"); s.snapshots.push(date); },
     async getCategoryRules() { return []; },
     async existingCategorizedIds(ids: string[]) { return new Set(ids.filter((i) => s.txs.get(i)?.category)); },
     async manualCategories(ids: string[]) {
@@ -73,7 +76,7 @@ test("modified transactions keep the user's category; new ones get Plaid's", asy
       removed: [], next_cursor: "c", has_more: false } }),
   };
   const store = memStore([item("i1")]);
-  store.txs.set("old", { id: "old", accountId: "a1", amount: 10, date: "2026-11-01", name: "x", isPending: false, isManual: false, category: "My Custom" });
+  store.txs.set("old", { id: "old", accountId: "a1", amount: 10, date: "2026-11-01", name: "x", isPending: false, isManual: false, plaidCategory: null, category: "My Custom" });
   await syncAll(plaid, store);
   assert.equal(store.txs.get("new")?.category, "Food & Drink");
   assert.equal(store.txs.get("new")?.categorySource, "plaid");
@@ -148,7 +151,7 @@ test("replaying history (added) does not overwrite categories we already hold", 
       modified: [], removed: [], next_cursor: "c", has_more: false } }),
   };
   const store = memStore([item("i1")]);
-  store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, category: "Food & Drink" });
+  store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, plaidCategory: null, category: "Food & Drink" });
   await syncAll(plaid, store);
   assert.equal(store.txs.get("have")?.category, "Food & Drink");
   assert.equal(store.txs.get("fresh")?.category, "General");
@@ -228,4 +231,19 @@ test("an item whose token cannot be decrypted is reported and does not stop othe
   assert.deepEqual(report.items.map((i) => [i.itemId, i.status, i.error]), [["bad", "error", "TOKEN_DECRYPT_FAILED"], ["good", "ok", undefined]]);
   assert.deepEqual(seen, ["access-good"]);
   assert.equal(report.ok, false);
+});
+
+test("each sync saves a balance snapshot under the Pacific date; a failed snapshot does not fail the sync", async () => {
+  const plaid: PlaidLike = {
+    accountsGet: async () => ({ data: { accounts: [] } }),
+    transactionsSync: async () => ({ data: { added: [], modified: [], removed: [], next_cursor: "c", has_more: false } }),
+  };
+  const store = memStore([item("i1")]);
+  // 03:00 UTC on the 21st is still the 20th in Seattle.
+  const r = await syncAll(plaid, store, "2026-11-21T03:00:00Z");
+  assert.deepEqual([r.ok, r.snapshot, store.snapshots], [true, "2026-11-20", ["2026-11-20"]]);
+  assert.equal(localDate("2026-11-21T14:00:00Z"), "2026-11-21");
+  store.failSnapshot = true;
+  const r2 = await syncAll(plaid, store, "2026-11-21T14:00:00Z");
+  assert.deepEqual([r2.ok, r2.snapshot], [true, "failed"]);
 });

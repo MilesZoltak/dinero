@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { MAX_ROWS, monthlyTrend, queryTransactions, spendByCategory, summarizeAccounts } from "./analysis.ts";
+import { MAX_ROWS, monthlyTrend, netWorthHistory, queryTransactions, spendByCategory, summarizeAccounts } from "./analysis.ts";
 import { isTransferCategory } from "./categorize.ts";
 import type { Store } from "./store.ts";
 
@@ -87,5 +87,19 @@ export function registerTools(server: McpServer, store: Store) {
       const txs = await store.getTransactions(r);
       return json(monthlyTrend(includeTransfers ? txs : txs.filter((t) => !isTransferCategory(t.category))));
     },
+  );
+
+  server.registerTool(
+    "net_worth_history",
+    {
+      description:
+        "Net worth, total assets and total liabilities per day, oldest first, from the balance snapshot each daily sync saves. History starts on the first snapshot; there is none before that. change is the last point minus the first.",
+      inputSchema: {
+        ...range,
+        includeAccounts: z.boolean().optional().describe("Also return each account's balance per day. Default false."),
+      },
+      annotations: readOnly,
+    },
+    async ({ includeAccounts, ...r }) => json(netWorthHistory(await store.getBalanceSnapshots(r), { includeAccounts })),
   );
 }

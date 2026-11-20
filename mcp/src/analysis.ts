@@ -1,4 +1,4 @@
-import type { Account, Transaction } from "./store.ts";
+import type { Account, BalanceSnapshot, Transaction } from "./store.ts";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -85,4 +85,27 @@ export function monthlyTrend(txs: Transaction[]) {
       income: round2(e.income),
       net: round2(e.income - e.spend),
     }));
+}
+
+/**
+ * Net worth per day from the daily balance snapshots, oldest first. History
+ * only exists from the first snapshot onward; Plaid has no past balances.
+ */
+export function netWorthHistory(snaps: BalanceSnapshot[], opts: { includeAccounts?: boolean } = {}) {
+  const points = [...snaps]
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((s) => ({
+      date: s.date,
+      totalAssets: s.totalAssets,
+      totalLiabilities: s.totalLiabilities,
+      netWorth: s.netWorth,
+      ...(opts.includeAccounts ? { accounts: s.accounts } : {}),
+    }));
+  const first = points[0];
+  const last = points[points.length - 1];
+  return {
+    points,
+    change: first && last ? round2(last.netWorth - first.netWorth) : null,
+    ...(points.length === 0 ? { note: "No balance snapshots in this range. Snapshots are saved by each daily sync, starting when this feature was deployed." } : {}),
+  };
 }

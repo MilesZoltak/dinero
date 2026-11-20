@@ -38,7 +38,7 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 ## Status
 
 - Done: `mcp/` service with `ping`, `get_accounts_summary`, `query_transactions`, `spend_by_category` and `monthly_trend`, read-only over Firestore, with explicit field whitelists so Plaid tokens cannot appear in any response.
-- Not built: `net_worth_history` (Dinero stores no balance history, so it needs a snapshot job first) and `recurring_charges`.
+- Built, pending deploy: `net_worth_history`. Each sync (including the daily job) saves a balance snapshot to `balanceSnapshots/{YYYY-MM-DD}` (Pacific date); history starts at the first snapshot. Not built: `recurring_charges`.
 - Built, untested against real Plaid: `POST /sync` in `mcp/` (see `mcp/README.md`). Real Plaid only, cursor-based `/transactions/sync` with full-history paging, per-bank status report, no mock path. Needs Plaid secrets in Secret Manager and Firestore write access for the service account.
 - First real sync run on 2026-11-20: Chase, Bank of America and Marcus synced real data (880, 56 and 8 transactions). The earlier worry that Firestore held mock data was wrong. Stanford FCU returned `ITEM_LOGIN_REQUIRED` and needs re-linking. Schwab and Fidelity returned `ADDITIONAL_CONSENT_REQUIRED`: they were linked with the Investments product only, so balances sync but transactions do not (now reported as `balances_only`).
 - The first run replayed all history as "added" and overwrote categories on transactions the app already held. Fixed afterwards: existing categories are no longer overwritten. The old app's retroactive sweep (Spend page) restores rule-based categories.

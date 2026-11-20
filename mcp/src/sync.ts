@@ -100,6 +100,8 @@ export interface SyncStore {
   existingCategorizedIds(ids: string[]): Promise<Set<string>>;
   /** Of these ids, the ones set by hand (categorySource "manual"), with their category. */
   manualCategories(ids: string[]): Promise<Map<string, ManualCategory>>;
+  /** Saves today's balances of every account (one document per day; a later run that day replaces it). */
+  snapshotBalances(date: string, takenAt: string): Promise<void>;
 }
 
 export interface SyncOptions {
@@ -131,6 +133,13 @@ export interface ItemReport {
 export interface SyncReport {
   ok: boolean;
   items: ItemReport[];
+  /** The day whose balance snapshot was saved, or "failed". A failed snapshot does not fail the sync. */
+  snapshot?: string;
+}
+
+/** Calendar date in Miles's time zone, so a 6am Pacific run files under the right day. */
+export function localDate(iso: string, timeZone = "America/Los_Angeles"): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 }
 
 const MAX_PAGES = 200;
@@ -271,5 +280,14 @@ export async function syncAll(plaid: PlaidLike, store: SyncStore, now = new Date
   const rules = await store.getCategoryRules();
   const reports: ItemReport[] = [];
   for (const item of items) reports.push(await syncItem(plaid, store, item, now, rules, opts));
-  return { ok: reports.every((r) => r.status === "ok" || r.status === "balances_only" || r.status === "skipped_mock"), items: reports };
+  const ok = reports.every((r) => r.status === "ok" || r.status === "balances_only" || r.status === "skipped_mock");
+  let snapshot: string;
+  try {
+    snapshot = localDate(now);
+    await store.snapshotBalances(snapshot, now);
+  } catch (err) {
+    console.error("balance snapshot failed:", err instanceof Error ? err.message : "unknown error");
+    snapshot = "failed";
+  }
+  return { ok, items: reports, snapshot };
 }

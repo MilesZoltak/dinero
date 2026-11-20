@@ -16,8 +16,13 @@ const txs = [
   toTransaction("t3", { accountId: "a1", amount: -3000, date: "2026-11-01", name: "Payroll", category: "Income" }),
   toTransaction("t4", { accountId: "a2", amount: 10, date: "2026-11-02", name: "Trader Joes", category: "Groceries" }),
 ];
+const snaps = [
+  { date: "2026-11-21", totalAssets: 1100, totalLiabilities: 200, netWorth: 900, accounts: [{ id: "a1", name: "Checking", institutionName: "Bank", type: "depository", balance: 1100 }] },
+  { date: "2026-11-20", totalAssets: 1000, totalLiabilities: 200, netWorth: 800, accounts: [{ id: "a1", name: "Checking", institutionName: "Bank", type: "depository", balance: 1000 }] },
+];
 const fakeStore: Store = {
   getAccounts: async () => accounts,
+  getBalanceSnapshots: async ({ startDate, endDate }) => snaps.filter((s) => (!startDate || s.date >= startDate) && (!endDate || s.date <= endDate)),
   getTransactions: async ({ startDate, endDate }) =>
     txs.filter((t) => (!startDate || t.date >= startDate) && (!endDate || t.date <= endDate)),
 };
@@ -60,7 +65,7 @@ test("lists and calls ping with the right token", async () => {
   assert.equal((await rpc(init, TOKEN)).status, 200);
   const list = await (await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }, TOKEN)).json();
   assert.deepEqual(list.result.tools.map((t: { name: string }) => t.name), [
-    "ping", "get_accounts_summary", "query_transactions", "spend_by_category", "monthly_trend",
+    "ping", "get_accounts_summary", "query_transactions", "spend_by_category", "monthly_trend", "net_worth_history",
   ]);
   const call = await (
     await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "ping", arguments: {} } }, TOKEN)
@@ -307,4 +312,17 @@ test("/admin/encrypt-tokens needs the bearer token and is a dry run unless apply
   } finally {
     s.close();
   }
+});
+
+test("net_worth_history returns days oldest first with the change, accounts on request", async () => {
+  const call = async (args: unknown) =>
+    JSON.parse((await (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "net_worth_history", arguments: args } }, TOKEN)).json()).result.content[0].text);
+  const all = await call({});
+  assert.deepEqual(all.points.map((p: { date: string }) => p.date), ["2026-11-20", "2026-11-21"]);
+  assert.equal(all.change, 100);
+  assert.equal(all.points[0].accounts, undefined);
+  assert.equal((await call({ includeAccounts: true })).points[1].accounts[0].balance, 1100);
+  const none = await call({ startDate: "2025-01-01", endDate: "2025-12-31" });
+  assert.deepEqual([none.points.length, none.change], [0, null]);
+  assert.match(none.note, /No balance snapshots/);
 });

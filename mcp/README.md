@@ -246,3 +246,12 @@ working for encrypted items. That is intended: `/sync` here replaces it.
 Do not destroy or disable the key version while tokens use it; they become
 unreadable and every bank would need re-linking. Rotation is safe: KMS keeps
 old versions for decryption.
+
+## Net worth history
+
+Plaid only reports current balances, so each sync saves a snapshot of every
+account's balance to `balanceSnapshots/{YYYY-MM-DD}` (Pacific date; a later
+sync the same day replaces it). The daily job therefore builds one point per
+day. `net_worth_history` reads them; history starts with the first snapshot.
+A failed snapshot is logged and reported as `"snapshot": "failed"` but does not
+fail the sync.
