@@ -4,6 +4,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createFirestoreStore, type Store } from "./store.ts";
 import { registerTools } from "./tools.ts";
+import { createFirestoreSyncStore, createPlaidFromEnv } from "./syncStore.ts";
+import { syncAll, type SyncReport } from "./sync.ts";
 
 /**
  * Dinero MCP endpoint: read-only finance tools over Firestore.
@@ -18,7 +20,9 @@ export function tokensEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-export function createApp(expectedToken: string, store: Store) {
+export type SyncRunner = () => Promise<SyncReport>;
+
+export function createApp(expectedToken: string, store: Store, runSync?: SyncRunner) {
   if (expectedToken.length < 32) {
     throw new Error("MCP_BEARER_TOKEN must be at least 32 characters");
   }
@@ -75,6 +79,30 @@ export function createApp(expectedToken: string, store: Store) {
     }
   });
 
+  // Not an MCP tool on purpose: tools stay read-only. Trigger with
+  // curl -X POST -H "Authorization: Bearer $TOKEN" <service-url>/sync
+  let syncing = false;
+  app.post("/sync", authenticate, async (_req, res) => {
+    if (!runSync) {
+      res.status(503).json({ error: "Plaid is not configured (PLAID_CLIENT_ID / PLAID_SECRET)." });
+      return;
+    }
+    if (syncing) {
+      res.status(409).json({ error: "A sync is already running." });
+      return;
+    }
+    syncing = true;
+    try {
+      const report = await runSync();
+      res.status(report.ok ? 200 : 207).json(report);
+    } catch (err) {
+      console.error("sync failed", err);
+      res.status(500).json({ error: "Sync failed." });
+    } finally {
+      syncing = false;
+    }
+  });
+
   const notAllowed = (_req: Request, res: Response) => {
     res.status(405).set("Allow", "POST").json({
       jsonrpc: "2.0",
@@ -95,5 +123,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.env.RUN_MAIN === 
     process.exit(1);
   }
   const port = Number(process.env.PORT ?? 8080);
-  createApp(token, createFirestoreStore(process.env.GOOGLE_CLOUD_PROJECT ?? "dinero-3e826")).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? "dinero-3e826";
+  const plaid = createPlaidFromEnv();
+  const syncStore = createFirestoreSyncStore(projectId);
+  const runSync: SyncRunner | undefined = plaid ? () => syncAll(plaid, syncStore) : undefined;
+  createApp(token, createFirestoreStore(projectId), runSync).listen(port, () => console.log(`dinero-mcp listening on :${port}`));
 }

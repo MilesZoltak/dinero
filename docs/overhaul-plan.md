@@ -39,7 +39,9 @@ These came out of a voice conversation; he agreed to "one vendor" but did not si
 
 - Done: `mcp/` service with `ping`, `get_accounts_summary`, `query_transactions`, `spend_by_category` and `monthly_trend`, read-only over Firestore, with explicit field whitelists so Plaid tokens cannot appear in any response.
 - Not built: `net_worth_history` (Dinero stores no balance history, so it needs a snapshot job first) and `recurring_charges`.
-- Not built: Plaid sync, the Link page, and the dashboard.
+- Built, untested against real Plaid: `POST /sync` in `mcp/` (see `mcp/README.md`). Real Plaid only, cursor-based `/transactions/sync` with full-history paging, per-bank status report, no mock path. Needs Plaid secrets in Secret Manager and Firestore write access for the service account.
+- **Possible mock data in Firestore.** The old app's `exchange-token` route fabricates accounts when Plaid is not configured, and the account set seen in Claude (Chase/Bank of America, Schwab/Fidelity, Marcus, one other bank) matches those templates. If the balances are the mock ones, the current net worth is fake and real banks need linking through Plaid Link.
+- Not built: the Plaid Link page (needed to link real banks, and to re-link expired ones), the categorizer port, encrypting access tokens at rest, a sync schedule, and the dashboard.
 - The old `get_spending_by_category` in `src/lib/chatbot/tools.ts` was wrong: it asked for 1000 rows but `queryTransactionsTool` clamps to 50, so category totals covered only 50 transactions. The `mcp/` version aggregates every transaction in the range.
 
 ## Security problems in the current code (fix or retire during the rewrite)

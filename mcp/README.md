@@ -37,3 +37,32 @@ deploy complains.
 Add a custom connector with the service URL plus `/mcp`, send the token as a
 bearer token, then ask a chat to call `ping`. A `pong` reply means step 1 works
 for bearer auth.
+
+## Plaid sync
+
+`POST /sync` pulls accounts and transactions from Plaid into Firestore using
+`/transactions/sync`: the first run fetches all history Plaid has, later runs
+are incremental from a cursor stored on each `plaidItems` document. It is an
+HTTP endpoint, not an MCP tool, so the MCP tools stay read-only.
+
+There is no mock mode. Without Plaid credentials it returns 503. Items whose
+token starts with `mock_` (from the old app) are skipped and reported. One bank
+failing, for example `login_required` after an expired login, does not stop the
+others; the response is 207 with a per-bank status. Re-link that bank to fix it.
+
+Store the Plaid credentials in Secret Manager, then mount them:
+
+```bash
+printf '%s' "<client id>" | gcloud secrets create plaid-client-id --data-file=-
+printf '%s' "<secret>"    | gcloud secrets create plaid-secret --data-file=-
+gcloud run services update dinero-mcp --region us-central1 \
+  --update-secrets PLAID_CLIENT_ID=plaid-client-id:latest,PLAID_SECRET=plaid-secret:latest \
+  --update-env-vars PLAID_ENV=production
+```
+
+The service account needs `roles/secretmanager.secretAccessor` on both secrets
+and `roles/datastore.user` (write access) on the project. Run a sync:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" https://<service-url>/sync
+```

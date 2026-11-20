@@ -119,3 +119,54 @@ test("bad date input is rejected", async () => {
 test("rejects short tokens at startup", () => {
   assert.throws(() => createApp("short", fakeStore));
 });
+
+async function withApp<T>(runSync: Parameters<typeof createApp>[2], fn: (url: string) => Promise<T>) {
+  const s = createApp(TOKEN, fakeStore, runSync).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    return await fn(`http://127.0.0.1:${(s.address() as AddressInfo).port}`);
+  } finally {
+    s.close();
+  }
+}
+const post = (url: string, token?: string) =>
+  fetch(`${url}/sync`, { method: "POST", headers: token ? { authorization: `Bearer ${token}` } : {} });
+
+test("/sync requires the bearer token", async () => {
+  await withApp(async () => ({ ok: true, items: [] }), async (url) => {
+    assert.equal((await post(url)).status, 401);
+    assert.equal((await post(url, "x".repeat(40))).status, 401);
+  });
+});
+
+test("/sync says 503 when Plaid is not configured, and never mocks", async () => {
+  await withApp(undefined, async (url) => {
+    const r = await post(url, TOKEN);
+    assert.equal(r.status, 503);
+    assert.match((await r.json()).error, /not configured/);
+  });
+});
+
+test("/sync returns 200 on full success and 207 when an item failed", async () => {
+  await withApp(async () => ({ ok: true, items: [] }), async (url) => assert.equal((await post(url, TOKEN)).status, 200));
+  await withApp(
+    async () => ({ ok: false, items: [{ itemId: "i", institution: "B", status: "login_required", accounts: 0, added: 0, modified: 0, removed: 0, error: "ITEM_LOGIN_REQUIRED" }] }),
+    async (url) => {
+      const r = await post(url, TOKEN);
+      assert.equal(r.status, 207);
+      assert.equal((await r.json()).items[0].status, "login_required");
+    },
+  );
+});
+
+test("/sync refuses overlapping runs", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  await withApp(async () => { await gate; return { ok: true, items: [] }; }, async (url) => {
+    const first = post(url, TOKEN);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal((await post(url, TOKEN)).status, 409);
+    release();
+    assert.equal((await first).status, 200);
+  });
+});
