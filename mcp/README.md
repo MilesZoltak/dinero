@@ -255,3 +255,16 @@ sync the same day replaces it). The daily job therefore builds one point per
 day. `net_worth_history` reads them; history starts with the first snapshot.
 A failed snapshot is logged and reported as `"snapshot": "failed"` but does not
 fail the sync.
+
+## Recurring charges
+
+`recurring_charges` finds subscriptions and bills from transaction history
+(`recurringCharges` in `mcp/src/analysis.ts`). A payee qualifies when either:
+
+- most of a cluster of identical charges falls on an even schedule (weekly to
+  yearly), tolerating a one-off price, skipped periods and a few days' drift; or
+- varying amounts land on about the same day each month, at least 4 times, and
+  make up most of that payee's charges (metered bills such as Railway).
+
+Frequent but irregular spending (coffee, groceries, Amazon) does not qualify.
+Transfers are left out. A charge appears after about three occurrences.

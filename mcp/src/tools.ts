@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { MAX_ROWS, monthlyTrend, netWorthHistory, queryTransactions, spendByCategory, summarizeAccounts } from "./analysis.ts";
+import { MAX_ROWS, monthlyTrend, netWorthHistory, queryTransactions, recurringCharges, spendByCategory, summarizeAccounts } from "./analysis.ts";
+import { localDate } from "./sync.ts";
 import { isTransferCategory } from "./categorize.ts";
 import type { Store } from "./store.ts";
 
@@ -101,5 +102,25 @@ export function registerTools(server: McpServer, store: Store) {
       annotations: readOnly,
     },
     async ({ includeAccounts, ...r }) => json(netWorthHistory(await store.getBalanceSnapshots(r), { includeAccounts })),
+  );
+
+  server.registerTool(
+    "recurring_charges",
+    {
+      description:
+        "Subscriptions and other charges that repeat on a schedule (weekly, biweekly, monthly, quarterly, yearly), found from transaction history. Each has its typical amount, cadence, last and next expected date, and annual cost; estimatedMonthlyTotal sums the active ones. Transfers between your own accounts are left out. Detection is heuristic: a charge needs about three regular occurrences before it shows up.",
+      inputSchema: {
+        lookbackMonths: z.number().int().min(3).max(36).optional().describe("How far back to look. Default 13, so yearly charges can appear."),
+        includeInactive: z.boolean().optional().describe("Also list charges that seem to have stopped. Default false."),
+      },
+      annotations: readOnly,
+    },
+    async ({ lookbackMonths, includeInactive }) => {
+      const today = localDate(new Date().toISOString());
+      const start = new Date(Date.parse(today));
+      start.setUTCMonth(start.getUTCMonth() - (lookbackMonths ?? 13));
+      const txs = await store.getTransactions({ startDate: start.toISOString().slice(0, 10) });
+      return json(recurringCharges(txs.filter((t) => !isTransferCategory(t.category)), today, { includeInactive }));
+    },
   );
 }
