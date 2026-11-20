@@ -72,7 +72,16 @@ test("finish exchanges and stores a new bank, flags duplicates, and returns no t
   assert.ok(!JSON.stringify(r).includes("public-1"));
 });
 
-test("finish on an update-mode or unfinished session adds nothing", async () => {
+test("finish on an update-mode session reports the same item as relinked, with no duplicate warning", async () => {
+  saved.length = 0;
+  const { p } = plaidWith({
+    linkTokenGet: async () => ({ data: { link_sessions: [{ finished_at: "t", results: { item_add_results: [{ public_token: "public-1", institution: { name: "Chase", institution_id: "ins_3" } }] } }] } }),
+  });
+  const r = await finishLink(p, store({ "item-new": "access-old" }, ["Chase"]), "link-1");
+  assert.deepEqual(r.added, [{ itemId: "item-new", institution: "Chase", relinked: true }]);
+});
+
+test("finish on an unfinished session adds nothing", async () => {
   saved.length = 0;
   const { p } = plaidWith({ linkTokenGet: async () => ({ data: { link_sessions: [{ finished_at: "t", results: { item_add_results: [] } }] } }) });
   const r = await finishLink(p, store(), "link-1");

@@ -100,14 +100,15 @@ export async function startLink(
 export interface FinishResult {
   finished: boolean;
   exitedWithError: string | null;
-  added: { itemId: string; institution: string; warning?: string }[];
+  added: { itemId: string; institution: string; relinked?: boolean; warning?: string }[];
   errors: string[];
 }
 
 /**
- * Reads the outcome of a Hosted Link session. New banks come back as a public
- * token, which is exchanged and stored. Update-mode sessions add nothing; the
- * existing item simply works again, so run a sync afterwards.
+ * Reads the outcome of a Hosted Link session. Each result carries a public
+ * token, which is exchanged and stored. An update-mode session returns the
+ * item it repaired (same item id, so `relinked`); a genuinely new bank gets a
+ * new item id. Either way, run a sync afterwards.
  */
 export async function finishLink(plaid: LinkPlaidLike, store: LinkStore, linkToken: string): Promise<FinishResult> {
   let sessions;
@@ -127,6 +128,7 @@ export async function finishLink(plaid: LinkPlaidLike, store: LinkStore, linkTok
       const name = r.institution?.name ?? "Unknown institution";
       try {
         const ex = await plaid.itemPublicTokenExchange({ public_token: r.public_token });
+        const relinked = (await store.getPlaidItem(ex.data.item_id)) !== null;
         await store.savePlaidItem({
           itemId: ex.data.item_id,
           accessToken: ex.data.access_token,
@@ -136,7 +138,8 @@ export async function finishLink(plaid: LinkPlaidLike, store: LinkStore, linkTok
         out.added.push({
           itemId: ex.data.item_id,
           institution: name,
-          ...(known.has(name.toLowerCase())
+          ...(relinked ? { relinked: true } : {}),
+          ...(!relinked && known.has(name.toLowerCase())
             ? { warning: "This bank was already linked. Its accounts may now appear twice; use update mode for expired logins." }
             : {}),
         });

@@ -91,8 +91,9 @@ Plaid says you are done, finish the session with the returned `linkToken`:
 curl -s -X POST ... -d '{"linkToken":"<linkToken>"}' https://<service-url>/link/finish
 ```
 
-For a new bank this exchanges and stores the connection. For update mode it adds
-nothing; the existing connection simply works again. Then run `POST /sync`.
+For a new bank this exchanges and stores the connection. For update mode the
+result lists the repaired item with `"relinked": true` and the connection works
+again. Then run `POST /sync`.
 
 Use update mode for expired logins. Linking the same bank as "new" creates a
 second connection with a second copy of every account.
