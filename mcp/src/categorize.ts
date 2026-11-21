@@ -141,8 +141,8 @@ export function heuristicSubcategory(name: string, category: string): string | n
   const u = name.toUpperCase();
   switch (category) {
     case "Food & Drink":
-      if (has(u, "STARBUCKS", "CAFE", "COFFEE", "BAGEL", "EPICUREAN", "AN?CLAIR")) return "Cafe";
-      if (has(u, "WHOLEFDS", "WHOLE FOOD", "TRADER JOE", "SAFEWAY", "H MART", "GROCERY", "QFC", "MARKET")) return "Grocery";
+      if (has(u, "STARBUCKS", "CAFE", "COFFEE", "BAGEL", "EPICUREAN", "AN?CLAIR")) return "Coffee";
+      if (has(u, "WHOLEFDS", "WHOLE FOOD", "TRADER JOE", "SAFEWAY", "H MART", "GROCERY", "QFC")) return "Groceries";
       if (has(u, "DOORDASH", "DELIVERY", "EATS", "GRUBHUB")) return "Delivery";
       return null;
     case "Shopping":
@@ -185,10 +185,49 @@ export function heuristicSubcategory(name: string, category: string): string | n
   }
 }
 
+/** Readable names for Plaid's detailed categories where stripping the prefix reads badly. */
+const DETAILED_NAMES: Record<string, string> = {
+  RESTAURANT: "Restaurants",
+  BEER_WINE_AND_LIQUOR: "Bars & alcohol",
+  VENDING_MACHINES: "Vending",
+  TAXIS_AND_RIDE_SHARES: "Rideshare",
+  BIKES_AND_SCOOTERS: "Bikes & scooters",
+  PUBLIC_TRANSIT: "Public transit",
+  GAS: "Gas",
+  ONLINE_MARKETPLACES: "Online shopping",
+  CLOTHING_AND_ACCESSORIES: "Clothing",
+  SUPERSTORES: "Superstores",
+  BOOKSTORES_AND_NEWSSTANDS: "Books & news",
+  TV_AND_MOVIES: "TV & movies",
+  MUSIC_AND_AUDIO: "Music & audio",
+  SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS: "Events & outings",
+  GYMS_AND_FITNESS_CENTERS: "Gyms & fitness",
+  HAIR_AND_BEAUTY: "Hair & beauty",
+  TELEPHONE: "Phone",
+  INTERNET_AND_CABLE: "Internet & cable",
+  GAS_AND_ELECTRICITY: "Gas & electricity",
+};
+
+/**
+ * A subcategory from Plaid's personal_finance_category.detailed, such as
+ * FOOD_AND_DRINK_COFFEE -> "Coffee". Null for Plaid's catch-all "other" codes,
+ * which say nothing more than the category does.
+ */
+export function plaidSubcategory(detailed: string | null | undefined, primary: string | null | undefined): string | null {
+  if (!detailed || !primary || !detailed.startsWith(primary + "_")) return null;
+  const rest = detailed.slice(primary.length + 1);
+  if (!rest || rest.startsWith("OTHER")) return null;
+  if (DETAILED_NAMES[rest]) return DETAILED_NAMES[rest];
+  const words = rest.toLowerCase().replace(/_and_/g, " & ").replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export interface CategorizeInput {
   name: string;
   /** Plaid's personal_finance_category.primary, when we have it. */
   plaidCategory?: string | null;
+  /** Plaid's personal_finance_category.detailed, such as FOOD_AND_DRINK_COFFEE. */
+  plaidDetailed?: string | null;
   /** What the transaction is filed under today, for rows synced before plaidCategory was stored. */
   currentCategory?: string | null;
 }
@@ -217,6 +256,8 @@ export function categorize(input: CategorizeInput, rules: CategoryRule[]): Categ
     category = "Other";
     source = "default";
   }
-  const subcategory = ruleSubcategory(input.name, category, rules) ?? heuristicSubcategory(input.name, category);
+  // Plaid's detail only applies while the category is still Plaid's own; a rule that moved it elsewhere wins.
+  const fromPlaid = input.plaidCategory && canonicalCategory(input.plaidCategory) === category ? plaidSubcategory(input.plaidDetailed, input.plaidCategory) : null;
+  const subcategory = ruleSubcategory(input.name, category, rules) ?? fromPlaid ?? heuristicSubcategory(input.name, category);
   return { category, subcategory, source };
 }

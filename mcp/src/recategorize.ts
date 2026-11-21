@@ -6,6 +6,7 @@ export interface CategorizeRow {
   category: string;
   subcategory: string | null;
   plaidCategory: string | null;
+  plaidDetailed?: string | null;
   categorySource: string | null;
 }
 
@@ -88,7 +89,7 @@ export async function recategorizeAll(store: CategoryStore, opts: { dryRun: bool
       after.set(r.category, (after.get(r.category) ?? 0) + 1);
       continue;
     }
-    const res = categorize({ name: r.name, plaidCategory: r.plaidCategory, currentCategory: r.category }, rules);
+    const res = categorize({ name: r.name, plaidCategory: r.plaidCategory, plaidDetailed: r.plaidDetailed, currentCategory: r.category }, rules);
     bySource[res.source] = (bySource[res.source] ?? 0) + 1;
     after.set(res.category, (after.get(res.category) ?? 0) + 1);
     if (res.category !== r.category || res.subcategory !== r.subcategory || r.categorySource !== res.source) {

@@ -132,7 +132,7 @@ export function createFirestoreCategoryStore(projectId?: string): CategoryStore 
       }
     },
     async getRows() {
-      const snap = await db.collection("transactions").select("name", "category", "subcategory", "plaidCategory", "categorySource").get();
+      const snap = await db.collection("transactions").select("name", "category", "subcategory", "plaidCategory", "plaidDetailed", "categorySource").get();
       return snap.docs.map((d): CategorizeRow => {
         const x = d.data();
         const s = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -142,6 +142,7 @@ export function createFirestoreCategoryStore(projectId?: string): CategoryStore 
           category: typeof x.category === "string" ? x.category : "",
           subcategory: s(x.subcategory),
           plaidCategory: s(x.plaidCategory),
+          plaidDetailed: s(x.plaidDetailed),
           categorySource: s(x.categorySource),
         };
       });
@@ -181,6 +182,7 @@ export function createFirestoreCategoryWriteStore(projectId?: string): CategoryW
         category: typeof x.category === "string" ? x.category : "",
         subcategory: s(x.subcategory),
         plaidCategory: s(x.plaidCategory),
+        plaidDetailed: s(x.plaidDetailed),
         categorySource: s(x.categorySource),
         isPending: x.isPending === true,
         autoCategory: s(x.autoCategory),

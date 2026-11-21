@@ -76,7 +76,7 @@ test("modified transactions keep the user's category; new ones get Plaid's", asy
       removed: [], next_cursor: "c", has_more: false } }),
   };
   const store = memStore([item("i1")]);
-  store.txs.set("old", { id: "old", accountId: "a1", amount: 10, date: "2026-11-01", name: "x", isPending: false, isManual: false, plaidCategory: null, category: "My Custom" });
+  store.txs.set("old", { id: "old", accountId: "a1", amount: 10, date: "2026-11-01", name: "x", isPending: false, isManual: false, plaidCategory: null, plaidDetailed: null, category: "My Custom" });
   await syncAll(plaid, store);
   assert.equal(store.txs.get("new")?.category, "Food & Drink");
   assert.equal(store.txs.get("new")?.categorySource, "plaid");
@@ -151,7 +151,7 @@ test("replaying history (added) does not overwrite categories we already hold", 
       modified: [], removed: [], next_cursor: "c", has_more: false } }),
   };
   const store = memStore([item("i1")]);
-  store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, plaidCategory: null, category: "Food & Drink" });
+  store.txs.set("have", { id: "have", accountId: "a1", amount: 10, date: "2026-08-01", name: "x", isPending: false, isManual: false, plaidCategory: null, plaidDetailed: null, category: "Food & Drink" });
   await syncAll(plaid, store);
   assert.equal(store.txs.get("have")?.category, "Food & Drink");
   assert.equal(store.txs.get("fresh")?.category, "General");

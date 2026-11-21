@@ -25,7 +25,7 @@ test("canonicalCategory merges every spelling of the same thing", () => {
 
 test("rule beats Plaid, Plaid beats the old category, and the last resort is Other", () => {
   const rules = [rule("r", "starbucks", "Food & Drink")];
-  assert.deepEqual(categorize({ name: "STARBUCKS 123", plaidCategory: "GENERAL_MERCHANDISE" }, rules), { category: "Food & Drink", subcategory: "Cafe", source: "rule" });
+  assert.deepEqual(categorize({ name: "STARBUCKS 123", plaidCategory: "GENERAL_MERCHANDISE" }, rules), { category: "Food & Drink", subcategory: "Coffee", source: "rule" });
   assert.deepEqual(categorize({ name: "Clinic", plaidCategory: "MEDICAL" }, rules), { category: "Medical", subcategory: null, source: "plaid" });
   assert.equal(categorize({ name: "Mystery", currentCategory: "FOOD_AND_DRINK" }, rules).category, "Food & Drink");
   assert.equal(categorize({ name: "Mystery", currentCategory: "Travel" }, rules).source, "existing");
@@ -89,6 +89,26 @@ test("applying writes updates, skips manual rows, and does not reseed existing r
 });
 
 test("a second run changes nothing", async () => {
-  const store = memStore([rule("r", "starbucks", "Food & Drink")], [row("1", "Starbucks", "Food & Drink", { subcategory: "Cafe", categorySource: "rule" })]);
+  const store = memStore([rule("r", "starbucks", "Food & Drink")], [row("1", "Starbucks", "Food & Drink", { subcategory: "Coffee", categorySource: "rule" })]);
   assert.equal((await recategorizeAll(store, { dryRun: false })).changed, 0);
+});
+
+test("Plaid's detailed category becomes the subcategory, unless a rule moved the category", async () => {
+  const { plaidSubcategory } = await import("./categorize.ts");
+  assert.equal(plaidSubcategory("FOOD_AND_DRINK_COFFEE", "FOOD_AND_DRINK"), "Coffee");
+  assert.equal(plaidSubcategory("FOOD_AND_DRINK_RESTAURANT", "FOOD_AND_DRINK"), "Restaurants");
+  assert.equal(plaidSubcategory("FOOD_AND_DRINK_FAST_FOOD", "FOOD_AND_DRINK"), "Fast food");
+  assert.equal(plaidSubcategory("FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK", "FOOD_AND_DRINK"), null);
+  assert.equal(plaidSubcategory("TRANSPORTATION_TAXIS_AND_RIDE_SHARES", "TRANSPORTATION"), "Rideshare");
+  assert.equal(plaidSubcategory("MEDICAL_PRIMARY_CARE", "FOOD_AND_DRINK"), null);
+  const noRules: CategoryRule[] = [];
+  assert.deepEqual(categorize({ name: "Ox Burger", plaidCategory: "FOOD_AND_DRINK", plaidDetailed: "FOOD_AND_DRINK_FAST_FOOD" }, noRules), { category: "Food & Drink", subcategory: "Fast food", source: "plaid" });
+  // Plaid's catch-all falls back to the name heuristic.
+  assert.equal(categorize({ name: "Safeway", plaidCategory: "FOOD_AND_DRINK", plaidDetailed: "FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK" }, noRules).subcategory, "Groceries");
+  // Orca: Plaid says general services, a rule says transport, so Plaid's detail no longer applies.
+  const moved = categorize({ name: "Orca", plaidCategory: "GENERAL_SERVICES", plaidDetailed: "GENERAL_SERVICES_OTHER_GENERAL_SERVICES" }, [rule("o", "orca", "Travel & Transport")]);
+  assert.equal(moved.category, "Travel & Transport");
+  assert.notEqual(moved.subcategory, "Other general services");
+  // An explicit subcategory rule still wins over Plaid.
+  assert.equal(categorize({ name: "Cafe X", plaidCategory: "FOOD_AND_DRINK", plaidDetailed: "FOOD_AND_DRINK_RESTAURANT" }, [rule("c", "cafe x", "Food & Drink", "Brunch")]).subcategory, "Brunch");
 });

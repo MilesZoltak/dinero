@@ -28,7 +28,7 @@ export interface PlaidTxLike {
   pending?: boolean;
   /** On a posted transaction: the id of the pending transaction it replaces. */
   pending_transaction_id?: string | null;
-  personal_finance_category?: { primary?: string } | null;
+  personal_finance_category?: { primary?: string; detailed?: string } | null;
   category?: string[] | null;
 }
 
@@ -78,6 +78,8 @@ export interface TxWrite {
   isManual: false;
   /** Plaid's own primary category, kept so categories can be recomputed later. */
   plaidCategory: string | null;
+  /** Plaid's detailed category, such as FOOD_AND_DRINK_COFFEE; the source of most subcategories. */
+  plaidDetailed: string | null;
   /** Only set for new transactions, so recategorization survives later syncs. */
   category?: string;
   subcategory?: string | null;
@@ -161,9 +163,10 @@ function toTx(t: PlaidTxLike, withCategory: boolean, rules: CategoryRule[]): TxW
     isPending: t.pending === true,
     isManual: false,
     plaidCategory: t.personal_finance_category?.primary || t.category?.[0] || null,
+    plaidDetailed: t.personal_finance_category?.detailed || null,
   };
   if (withCategory) {
-    const c = categorize({ name: w.name, plaidCategory: w.plaidCategory }, rules);
+    const c = categorize({ name: w.name, plaidCategory: w.plaidCategory, plaidDetailed: w.plaidDetailed }, rules);
     w.category = c.category;
     w.subcategory = c.subcategory;
     w.categorySource = c.source;

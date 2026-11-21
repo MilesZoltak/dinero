@@ -112,7 +112,7 @@ function diffRules(rows: CategorizeRow[], before: CategoryRule[], after: Categor
   const updates: (CategoryUpdate & { from: string })[] = [];
   let skippedManual = 0;
   for (const r of rows) {
-    const input = { name: r.name, plaidCategory: r.plaidCategory, currentCategory: r.category };
+    const input = { name: r.name, plaidCategory: r.plaidCategory, plaidDetailed: r.plaidDetailed, currentCategory: r.category };
     const a = categorize(input, before);
     const b = categorize(input, after);
     if (a.category === b.category && a.subcategory === b.subcategory && a.source === b.source) continue;
@@ -220,7 +220,7 @@ export async function setTransactionCategory(
     if (input.category === null) {
       // Back to automatic: recompute from the rules, Plaid's category, or the category the manual edit replaced.
       const c = categorize(
-        { name: tx.name, plaidCategory: tx.plaidCategory, currentCategory: tx.categorySource === "manual" ? tx.autoCategory : tx.category },
+        { name: tx.name, plaidCategory: tx.plaidCategory, plaidDetailed: tx.plaidDetailed, currentCategory: tx.categorySource === "manual" ? tx.autoCategory : tx.category },
         rules,
       );
       after = { category: c.category, subcategory: c.subcategory, categorySource: c.source };
