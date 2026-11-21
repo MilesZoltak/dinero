@@ -1,6 +1,6 @@
 import type { Account, BalanceSnapshot, Transaction } from "./store.ts";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const MAX_ROWS = 100;
 
@@ -130,14 +130,14 @@ export function merchantKey(name: string): string {
 }
 
 const DAY = 86_400_000;
-const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY);
-const median = (xs: number[]) => {
+export const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / DAY);
+export const median = (xs: number[]) => {
   if (!xs.length) return NaN;
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * DAY).toISOString().slice(0, 10);
+export const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * DAY).toISOString().slice(0, 10);
 
 export interface RecurringCharge {
   merchant: string;
@@ -150,6 +150,8 @@ export interface RecurringCharge {
   firstDate: string;
   lastDate: string;
   nextExpected: string;
+  /** Typical days between charges. */
+  intervalDays: number;
   active: boolean;
   annualCost: number;
 }
@@ -159,7 +161,7 @@ export interface RecurringCharge {
  * of two or three periods) and up to 20% irregular gaps are tolerated, since
  * real bills move with weekends and paydays.
  */
-function fitCadence(dates: string[]) {
+export function fitCadence(dates: string[], minRegular = 0.8) {
   if (dates.length < 2) return null;
   const gaps = dates.slice(1).map((d, i) => days(dates[i], d));
   if (gaps.some((g) => g <= 0)) return null;
@@ -170,7 +172,7 @@ function fitCadence(dates: string[]) {
     const fits = (g: number) => [1, 2, 3].some((k) => Math.abs(g - k * base) <= tol * k);
     const single = gaps.filter((g) => Math.abs(g - base) <= tol).length;
     const regular = gaps.filter(fits).length;
-    if (single >= gaps.length / 2 && regular >= gaps.length * 0.8) return { band, typicalGap: Math.round(base) };
+    if (single >= gaps.length / 2 && regular >= gaps.length * minRegular) return { band, typicalGap: Math.round(base) };
   }
   return null;
 }
@@ -226,6 +228,7 @@ export function recurringCharges(txs: Transaction[], today: string, opts: { incl
       firstDate: run[0].date,
       lastDate: last.date,
       nextExpected: addDays(last.date, fit.typicalGap),
+      intervalDays: fit.typicalGap,
       active,
       annualCost: round2(typical * fit.band.perYear),
     });

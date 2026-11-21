@@ -268,3 +268,30 @@ fail the sync.
 
 Frequent but irregular spending (coffee, groceries, Amazon) does not qualify.
 Transfers are left out. A charge appears after about three occurrences.
+
+## Spending insights
+
+Read-only tools in the spirit of a budgeting app's home screen
+(`mcp/src/insights.ts`). Transfers are always left out.
+
+- `spend_by_category` with `bySubcategory: true`: Food & Drink split into
+  Groceries, Restaurants, Coffee, Fast food and so on. Subcategories come from a
+  subcategory rule, then Plaid's detailed category (`plaidDetailed`), then a
+  name heuristic.
+- `spending_by_month`: spend per month per category or subcategory.
+- `top_merchants`: payees ranked by spend, with their share.
+- `spending_this_month`: month to date against the same days last month, last
+  month, and the average of the three full months before (months the history
+  doesn't cover are left out of the average).
+- `upcoming`: recurring bills and paychecks expected in the next N days.
+  Paychecks are detected like recurring charges, but same-day deposits are
+  added together and paydays may drift.
+- `safe_to_spend`: checking, minus credit card balances, minus recurring bills
+  due before the next paycheck. An estimate; savings and investments don't count.
+- `worth_a_look`: fees and interest, subscription price increases, possible
+  duplicate charges, and charges far above a payee's usual. A repeated amount
+  (rent) is never flagged as unusual.
+
+Rows synced before `plaidDetailed` existed get it from one
+`POST /sync {"resetCursors":true}`, followed by `/categorize` to recompute
+subcategories.

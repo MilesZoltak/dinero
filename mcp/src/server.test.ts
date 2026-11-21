@@ -66,6 +66,7 @@ test("lists and calls ping with the right token", async () => {
   const list = await (await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }, TOKEN)).json();
   assert.deepEqual(list.result.tools.map((t: { name: string }) => t.name), [
     "ping", "get_accounts_summary", "query_transactions", "spend_by_category", "monthly_trend", "net_worth_history", "recurring_charges",
+    "spending_by_month", "top_merchants", "spending_this_month", "upcoming", "safe_to_spend", "worth_a_look",
   ]);
   const call = await (
     await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "ping", arguments: {} } }, TOKEN)
