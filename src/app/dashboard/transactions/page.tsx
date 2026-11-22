@@ -42,6 +42,7 @@ export default function TransactionsPage() {
   const [filterAccount, setFilterAccount] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterType, setFilterType] = useState('all'); // all, debit (expense), credit (income)
+  const [filterDateRange, setFilterDateRange] = useState<'all' | 'mtd' | '30d' | 'last-month'>('all');
 
   // Single Manual Transaction Form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -249,6 +250,29 @@ export default function TransactionsPage() {
     new Set(transactions.map((tx) => tx.category).filter(Boolean))
   );
 
+  // Date range bounds (local dates, inclusive) for the date-range filter
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const getDateRangeBounds = (): { start?: string; end?: string } => {
+    const now = new Date();
+    if (filterDateRange === 'mtd') {
+      return { start: toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1)) };
+    }
+    if (filterDateRange === '30d') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 29); // 30 days inclusive of today
+      return { start: toLocalDateStr(start) };
+    }
+    if (filterDateRange === 'last-month') {
+      return {
+        start: toLocalDateStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        end: toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 0)),
+      };
+    }
+    return {};
+  };
+  const dateBounds = getDateRangeBounds();
+
   // Apply filters
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = tx.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -264,7 +288,10 @@ export default function TransactionsPage() {
       matchesType = tx.amount < 0; // credit/income
     }
 
-    return matchesSearch && matchesAccount && matchesCategory && matchesType;
+    const matchesDate = (!dateBounds.start || tx.date >= dateBounds.start) &&
+                        (!dateBounds.end || tx.date <= dateBounds.end);
+
+    return matchesSearch && matchesAccount && matchesCategory && matchesType && matchesDate;
   });
 
   const formatCurrency = (val: number) => {
@@ -572,6 +599,21 @@ export default function TransactionsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ paddingLeft: '44px' }}
             />
+          </div>
+
+          {/* Date range filter */}
+          <div>
+            <select 
+              className="input-field" 
+              value={filterDateRange} 
+              onChange={(e) => setFilterDateRange(e.target.value as 'all' | 'mtd' | '30d' | 'last-month')}
+              style={{ background: 'black' }}
+            >
+              <option value="all">All Time</option>
+              <option value="mtd">This Month</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="last-month">Last Month</option>
+            </select>
           </div>
 
           {/* Account selector filter */}

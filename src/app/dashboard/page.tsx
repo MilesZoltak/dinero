@@ -49,7 +49,7 @@ export default function Dashboard() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   // Timescale configuration
-  const [timescale, setTimescale] = useState<'week' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | '5y' | 'all' | 'custom'>('month');
+  const [timescale, setTimescale] = useState<'week' | 'mtd' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | '5y' | 'all' | 'custom'>('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -126,6 +126,9 @@ export default function Dashboard() {
     if (timescale === 'week') {
       days = 7;
       startDateObj.setDate(today.getDate() - 6);
+    } else if (timescale === 'mtd') {
+      startDateObj = new Date(today.getFullYear(), today.getMonth(), 1);
+      days = today.getDate();
     } else if (timescale === 'month') {
       days = 30;
       startDateObj.setDate(today.getDate() - 29);
@@ -477,7 +480,8 @@ export default function Dashboard() {
 
                     const optionsConfig = [
                       { id: 'week', label: 'week', days: 7 },
-                      { id: 'month', label: 'month', days: 30 },
+                      { id: 'mtd', label: 'this month', days: 1 },
+                      { id: 'month', label: 'last 30 days', days: 30 },
                       { id: '3m', label: '3m', days: 90 },
                       { id: '6m', label: '6m', days: 180 },
                       { id: 'ytd', label: 'ytd', days: Math.ceil((today.getTime() - new Date(today.getFullYear(), 0, 1).getTime()) / (1000 * 60 * 60 * 24)) },
@@ -488,7 +492,7 @@ export default function Dashboard() {
 
                     // Filter fixed options to only those within bounds of available data (always show week & month if data exists)
                     const validFixedOptions = optionsConfig.filter(opt => {
-                      if (opt.id === 'week' || opt.id === 'month') return true;
+                      if (opt.id === 'week' || opt.id === 'mtd' || opt.id === 'month') return true;
                       return opt.days <= totalDaysAvailable + 30; // 30-day buffer allowance
                     });
 
@@ -497,6 +501,7 @@ export default function Dashboard() {
                       'all',
                       'custom'
                     ] as const;
+                    const optionLabels: Record<string, string> = Object.fromEntries(optionsConfig.map(o => [o.id, o.label]));
 
                     return allAvailableButtons.map((opt) => (
                       <button
@@ -512,7 +517,7 @@ export default function Dashboard() {
                           border: timescale === opt ? 'none' : '1px solid rgba(255,255,255,0.06)'
                         }}
                       >
-                        {opt === 'all' ? 'all time' : opt}
+                        {opt === 'all' ? 'all time' : (optionLabels[opt] ?? opt)}
                       </button>
                     ));
                   })()}
