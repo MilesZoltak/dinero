@@ -502,7 +502,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .feed-controls {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
   gap: 12px;
   margin-bottom: 20px;
 }
