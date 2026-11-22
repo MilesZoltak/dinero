@@ -50,7 +50,8 @@ export default function SpendHubPage() {
   const [loading, setLoading] = useState(true);
   
   // Analytics states
-  const [timeframe, setTimeframe] = useState<'30d' | '90d' | 'ytd' | 'all'>('30d');
+  const [timeframe, setTimeframe] = useState<'mtd' | '30d' | 'month' | '90d' | 'ytd' | 'all'>('mtd');
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' for the "By Month" view
   const [activeTab, setActiveTab] = useState<'overview' | 'rules'>('overview');
   
   // Drill-down states
@@ -117,23 +118,45 @@ export default function SpendHubPage() {
     }
   };
 
+  // Local-time YYYY-MM-DD (toISOString would shift the date to UTC)
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Months that have transactions, newest first ('YYYY-MM')
+  const availableMonths = Array.from(new Set(transactions.map((tx) => tx.date.slice(0, 7)))).sort().reverse();
+  const activeMonth = selectedMonth && availableMonths.includes(selectedMonth) ? selectedMonth : availableMonths[0] || null;
+
+  const formatMonthLabel = (ym: string) => {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
   // Filter transactions by selected timeframe
   const getFilteredTransactions = () => {
     const now = new Date();
-    let thresholdDate = new Date();
-    
-    if (timeframe === '30d') {
-      thresholdDate.setDate(now.getDate() - 30);
-    } else if (timeframe === '90d') {
-      thresholdDate.setDate(now.getDate() - 90);
-    } else if (timeframe === 'ytd') {
-      thresholdDate = new Date(now.getFullYear(), 0, 1);
-    } else {
-      return transactions;
+
+    if (timeframe === 'all') return transactions;
+
+    if (timeframe === 'mtd') {
+      const start = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+      return transactions.filter(tx => tx.date >= start);
     }
 
-    const thresholdStr = thresholdDate.toISOString().split('T')[0];
-    return transactions.filter(tx => tx.date >= thresholdStr);
+    if (timeframe === 'month') {
+      if (!activeMonth) return [];
+      return transactions.filter(tx => tx.date.startsWith(activeMonth));
+    }
+
+    let thresholdDate = new Date();
+    if (timeframe === '30d') {
+      thresholdDate.setDate(now.getDate() - 29); // 30 days inclusive of today
+    } else if (timeframe === '90d') {
+      thresholdDate.setDate(now.getDate() - 89);
+    } else {
+      thresholdDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    return transactions.filter(tx => tx.date >= toLocalDateStr(thresholdDate));
   };
 
   const filteredTx = getFilteredTransactions();
@@ -550,7 +573,7 @@ export default function SpendHubPage() {
         
         {/* Timeframe Selectors */}
         <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.02)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          {(['30d', '90d', 'ytd', 'all'] as const).map((t) => (
+          {(['mtd', '30d', 'month', '90d', 'ytd', 'all'] as const).map((t) => (
             <button
               key={t}
               onClick={() => { setTimeframe(t); setSelectedCategory(null); setSelectedMerchant(null); setPendingUpdates({}); }}
@@ -566,11 +589,35 @@ export default function SpendHubPage() {
                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             >
-              {t === '30d' ? '30 Days' : t === '90d' ? '90 Days' : t === 'ytd' ? 'YTD' : 'All Time'}
+              {t === 'mtd' ? 'Month to Date' : t === '30d' ? 'Last 30 Days' : t === 'month' ? 'By Month' : t === '90d' ? '90 Days' : t === 'ytd' ? 'YTD' : 'All Time'}
             </button>
           ))}
         </div>
       </header>
+
+      {/* Month picker (By Month view) */}
+      {timeframe === 'month' && availableMonths.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {availableMonths.map((ym) => (
+            <button
+              key={ym}
+              onClick={() => { setSelectedMonth(ym); setSelectedCategory(null); setSelectedMerchant(null); setPendingUpdates({}); }}
+              style={{
+                background: activeMonth === ym ? 'rgba(0, 229, 255, 0.08)' : 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                color: activeMonth === ym ? '#34d399' : 'var(--text-secondary)',
+                padding: '6px 14px',
+                fontSize: '12px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {formatMonthLabel(ym)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px' }}>
